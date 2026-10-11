@@ -71,3 +71,12 @@ Audited Taipei, New Taipei, Taichung, Kaohsiung and intercity buses; raw report 
 
 **TDX plan** ❗
 - Response headers: `ratelimit-limit: 5`, `x-ratelimit-limit-minute: 5`, i.e. the free member plan allows **5 requests per minute**. Polling every city every 30–60 s needs about **60 requests/minute**, so production requires a paid plan. Ingest defaults now fit the free plan: Taipei only, about 2 requests/minute. It warns at startup when the configured polling exceeds `TDX_RATE_PER_MINUTE`.
+
+### Runs 2–3 — after the fixes (same night)
+
+| Check | Run 1 | After fixes |
+| --- | --- | --- |
+| Sub-routes whose `<SubRouteUID>_<Direction>` is a GTFS route_id | — | **100%** in all five areas |
+| Live ETA rows the lookup can join: Taichung, Kaohsiung, intercity | 0% | **100%** |
+| Same: Taipei, New Taipei (their ETA rows carry no `SubRouteUID`; joined through TDX route lists) | 0% | 28% → **100%** |
+| TRA live delays mapped to GTFS trips and stops | 0 / 51 | **50 / 50**; 1,010 trains, 245 stations, every TDX station mapped |
