@@ -16,8 +16,10 @@ export interface OtpFeed {
  * (`feedId:stopId`), so they must not change between builds.
  */
 export function splitBundle(bundle: Uint8Array, fallbackFeedId: string): OtpFeed[] {
-  const entries = unzipSync(bundle);
-  const inner = Object.entries(entries).filter(([name]) => name.toLowerCase().endsWith(".zip"));
+  // Inflate only inner zips and agency.txt: a flat national bundle's stop_times.txt can be
+  // gigabytes once decompressed.
+  const entries = unzipSync(bundle, { filter: (f) => isZip(f.name) || basename(f.name) === "agency.txt" });
+  const inner = Object.entries(entries).filter(([name]) => isZip(name));
   if (inner.length === 0) {
     return [
       { feedId: fallbackFeedId, fileName: `${fallbackFeedId}.gtfs.zip`, data: bundle, isTra: isTraFeed(entries) },
@@ -33,6 +35,20 @@ export function splitBundle(bundle: Uint8Array, fallbackFeedId: string): OtpFeed
       isTra: isTraFeed(unzipSync(data, { filter: (f) => basename(f.name) === "agency.txt" })),
     };
   });
+}
+
+const isZip = (name: string) => name.toLowerCase().endsWith(".zip");
+
+/** Entry names of a zip, without inflating anything. */
+export function listZip(data: Uint8Array): string[] {
+  const names: string[] = [];
+  unzipSync(data, {
+    filter: (f) => {
+      names.push(f.name);
+      return false;
+    },
+  });
+  return names;
 }
 
 /** "GTFS_TRA.zip" → "tra", "CityBus/Taipei.zip" → "taipei". */
@@ -63,12 +79,39 @@ function isTraFeed(files: Record<string, Uint8Array>): boolean {
 
 /** Some bundles nest files inside a folder; OTP wants GTFS files at the zip root. */
 function rezip(data: Uint8Array): Uint8Array {
+  if (listZip(data).every((n) => !n.includes("/"))) return data;
   const files = unzipSync(data);
-  const names = Object.keys(files);
-  if (names.every((n) => !n.includes("/"))) return data;
-  return zipSync(
-    Object.fromEntries(names.filter((n) => !n.endsWith("/")).map((n) => [basename(n), files[n] as Uint8Array])),
-  );
+  const names = Object.keys(files).filter((n) => !n.endsWith("/"));
+  return zipSync(Object.fromEntries(names.map((n) => [basename(n), files[n] as Uint8Array])));
+}
+
+/**
+ * GTFS fare files OTP does not need: TWCommute computes TPASS coverage itself. In the TDX national
+ * feed they are ~7 GB uncompressed (fare_leg_rules.txt alone is 3.8 GB) and would exhaust OTP's heap.
+ */
+export const OTP_SKIPPED_FILES = [
+  "fare_attributes.txt",
+  "fare_rules.txt",
+  "fare_products.txt",
+  "fare_leg_rules.txt",
+  "fare_transfer_rules.txt",
+  "fare_media.txt",
+  "rider_categories.txt",
+  "areas.txt",
+  "stop_areas.txt",
+];
+
+/** Re-zip a flat GTFS feed without the given files; returns the input unchanged if none are present. */
+export function dropFiles(
+  data: Uint8Array,
+  skip: string[] = OTP_SKIPPED_FILES,
+): { data: Uint8Array; dropped: string[] } {
+  const dropped = listZip(data).filter((n) => skip.includes(basename(n).toLowerCase()));
+  if (dropped.length === 0) return { data, dropped };
+  const kept = unzipSync(data, {
+    filter: (f) => !f.name.endsWith("/") && !skip.includes(basename(f.name).toLowerCase()),
+  });
+  return { data: zipSync(kept, { level: 1 }), dropped };
 }
 
 export interface ConfigTemplates {

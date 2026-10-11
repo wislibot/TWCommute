@@ -111,8 +111,9 @@ export function mapItinerary(it: OtpItinerary, id: string): Itinerary {
     }
     return mapLeg(leg, toVia, fromVia);
   });
-  const first = mapped[0];
-  const last = mapped.at(-1);
+  const legsOut = shiftViaDepartures(mapped);
+  const first = legsOut[0];
+  const last = legsOut.at(-1);
   return {
     id,
     start: it.start ?? first?.start.scheduled ?? "",
@@ -120,6 +121,52 @@ export function mapItinerary(it: OtpItinerary, id: string): Itinerary {
     durationSeconds: it.duration ?? 0,
     transfers: it.numberOfTransfers,
     walkDistanceMeters: it.walkDistance ?? 0,
-    legs: mapped,
+    legs: legsOut,
   };
+}
+
+/** After a via stay, arrive at the boarding stop this long before the vehicle. */
+export const VIA_BOARDING_BUFFER_MS = 2 * 60_000;
+
+const isStreetMode = (mode: LegMode) => mode === "WALK" || mode === "BICYCLE";
+
+/**
+ * OTP honours `minimumWaitTime` at a via, but times the street legs leaving the via "as early as
+ * possible", so the stay shows up as waiting at the next stop (verified against OTP 2.10 in
+ * infra/smoke). Move those street legs later so the time is spent at the via, keeping a small
+ * buffer before boarding.
+ */
+export function shiftViaDepartures(legs: Leg[]): Leg[] {
+  const out = [...legs];
+  for (let k = 0; k < out.length; k++) {
+    if (out[k]?.from.viaIndex === undefined) continue;
+    let t = k;
+    while (t < out.length && isStreetMode((out[t] as Leg).mode)) t++;
+    const transit = out[t];
+    const lastStreet = out[t - 1];
+    if (t === k || !transit || !lastStreet) continue;
+    const slack = Date.parse(transit.start.scheduled) - Date.parse(lastStreet.end.scheduled) - VIA_BOARDING_BUFFER_MS;
+    if (!(slack > 0)) continue;
+    for (let j = k; j < t; j++) out[j] = shiftLeg(out[j] as Leg, slack);
+  }
+  return out;
+}
+
+function shiftLeg(leg: Leg, ms: number): Leg {
+  const shift = (t: Leg["start"]) => ({
+    ...t,
+    scheduled: shiftIso(t.scheduled, ms),
+    ...(t.estimated ? { estimated: shiftIso(t.estimated, ms) } : {}),
+  });
+  return { ...leg, start: shift(leg.start), end: shift(leg.end) };
+}
+
+/** Add `ms` to an ISO timestamp, keeping its UTC offset (OTP returns local +08:00 times). */
+export function shiftIso(iso: string, ms: number): string {
+  const offset = /([+-])(\d{2}):(\d{2})$/.exec(iso);
+  const t = Date.parse(iso) + ms;
+  if (!offset) return new Date(t).toISOString();
+  const sign = offset[1] === "-" ? -1 : 1;
+  const offsetMs = sign * (Number(offset[2]) * 60 + Number(offset[3])) * 60_000;
+  return `${new Date(t + offsetMs).toISOString().slice(0, 19)}${offset[0]}`;
 }

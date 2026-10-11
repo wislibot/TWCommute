@@ -116,3 +116,18 @@ describe("buildUrl", () => {
     );
   });
 });
+
+describe("onResponse", () => {
+  it("reports every data response, including retried ones", async () => {
+    let dataCalls = 0;
+    const seen: number[] = [];
+    const { fetch } = stubFetch((url) => {
+      if (url === TDX_AUTH_URL) return tokenResponse();
+      dataCalls++;
+      return dataCalls === 1 ? json({}, 503) : json([], 200, { "x-ratelimit-remaining": "9" });
+    });
+    const client = new TdxClient({ ...creds, fetch, clock: new FakeClock(), onResponse: (r) => seen.push(r.status) });
+    await client.getJson("/a");
+    expect(seen).toEqual([503, 200]);
+  });
+});

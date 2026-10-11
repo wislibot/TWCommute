@@ -16,6 +16,28 @@ export function taipeiServiceDate(ms: number): string {
   return new Date(ms + 8 * 3600_000).toISOString().slice(0, 10).replaceAll("-", "");
 }
 
+/** Before this Taipei hour, a running train most likely started on the previous service day. */
+const OVERNIGHT_UNTIL_HOUR = 4;
+
+/**
+ * Which GTFS trips a live delay refers to. TDX TRA trip_ids carry their service day
+ * (`…_<YYYYMMDD>_<HHMMSS>`, one trip per day), so pick today's trip — or yesterday's for overnight
+ * trains before 04:00. Feeds without dated ids get every trip, dated today (OTP ignores the ones
+ * not running).
+ */
+export function tripsForNow(tripIds: string[], nowMs: number): Array<{ tripId: string; startDate: string }> {
+  const today = taipeiServiceDate(nowMs);
+  const dated = tripIds.map((tripId) => ({ tripId, date: /_(\d{8})_\d{4,6}$/.exec(tripId)?.[1] }));
+  if (dated.every((d) => d.date === undefined)) return tripIds.map((tripId) => ({ tripId, startDate: today }));
+  const yesterday = taipeiServiceDate(nowMs - 86_400_000);
+  const hour = new Date(nowMs + 8 * 3600_000).getUTCHours();
+  for (const date of hour < OVERNIGHT_UNTIL_HOUR ? [yesterday, today] : [today, yesterday]) {
+    const hits = dated.filter((d) => d.date === date);
+    if (hits.length) return hits.map((d) => ({ tripId: d.tripId, startDate: date }));
+  }
+  return [];
+}
+
 /**
  * Convert TDX TRA delays into a GTFS-Realtime TripUpdates feed for OpenTripPlanner.
  * TDX reports one delay (minutes) at the last station passed; a GTFS-RT stop-time update at
@@ -26,7 +48,6 @@ export function buildTraTripUpdates(
   index: TraIndex,
   nowMs = Date.now(),
 ): TripUpdatesResult {
-  const startDate = taipeiServiceDate(nowMs);
   const timestamp = Math.floor(nowMs / 1000);
   let matched = 0;
   let unmatchedTrains = 0;
@@ -34,8 +55,8 @@ export function buildTraTripUpdates(
   const entity: object[] = [];
 
   for (const d of delays) {
-    const tripIds = index.tripIdsByTrainNo.get(String(d.TrainNo).trim());
-    if (!tripIds?.length) {
+    const trips = tripsForNow(index.tripIdsByTrainNo.get(String(d.TrainNo).trim()) ?? [], nowMs);
+    if (!trips.length) {
       unmatchedTrains++;
       continue;
     }
@@ -45,9 +66,7 @@ export function buildTraTripUpdates(
       continue;
     }
     const delaySeconds = Math.max(0, Math.round(d.DelayTime * 60));
-    // A train number can map to several trip_ids (calendar variants); OTP ignores the ones
-    // not running on startDate.
-    for (const tripId of tripIds) {
+    for (const { tripId, startDate } of trips) {
       entity.push({
         id: `tra-${d.TrainNo}-${tripId}`,
         tripUpdate: {

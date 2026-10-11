@@ -57,6 +57,9 @@ importers:
       '@twc/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@twc/fares':
+        specifier: workspace:*
+        version: link:../../packages/fares
       '@twc/tdx':
         specifier: workspace:*
         version: link:../../packages/tdx

@@ -9,10 +9,12 @@
     "fetch-gtfs": "tsx src/gtfs/fetch-cli.ts",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "prepare-otp": "tsx src/gtfs/prepare-otp-cli.ts"
+    "prepare-otp": "tsx src/gtfs/prepare-otp-cli.ts",
+    "audit": "tsx src/audit/run-audit-cli.ts"
   },
   "dependencies": {
     "@twc/contracts": "workspace:*",
+    "@twc/fares": "workspace:*",
     "@twc/tdx": "workspace:*",
     "fastify": "^5.12.5",
     "fflate": "^0.8.3",

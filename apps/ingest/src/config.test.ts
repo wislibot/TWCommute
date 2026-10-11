@@ -1,13 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { estimatedCallsPerSecond, loadConfig } from "./config";
+import { estimatedCallsPerMinute, loadConfig } from "./config";
 
 const creds = { TDX_CLIENT_ID: "id", TDX_CLIENT_SECRET: "secret" };
 
 describe("loadConfig", () => {
-  it("defaults to all cities", () => {
+  it("defaults to one city that fits the free TDX plan (5 requests/minute)", () => {
     const c = loadConfig(creds);
-    expect(c.BUS_CITIES).toHaveLength(22);
-    expect(c.BIKE_CITIES).toHaveLength(15);
+    expect(c.BUS_CITIES).toEqual(["Taipei"]);
+    expect(c.BIKE_CITIES).toEqual(["Taipei"]);
+    expect(estimatedCallsPerMinute(c)).toBeLessThanOrEqual(c.TDX_RATE_PER_MINUTE);
+  });
+
+  it("expands 'all'", () => {
+    expect(loadConfig({ ...creds, BUS_CITIES: "all" }).BUS_CITIES).toHaveLength(22);
   });
 
   it("parses city lists and rejects unknown cities", () => {
@@ -21,7 +26,7 @@ describe("loadConfig", () => {
 
   it("estimates TDX call volume independent of users", () => {
     const c = loadConfig({ ...creds, BUS_CITIES: "Taipei", BUS_INTERCITY: "false", BIKE_CITIES: "Taipei" });
-    // 1/30 bus + 1/60 bike availability + 1/21600 bike stations + 1/60 TRA
-    expect(estimatedCallsPerSecond(c)).toBeCloseTo(1 / 30 + 1 / 60 + 1 / 21600 + 1 / 60, 6);
+    // per minute: 60/60 bus ETA + 60/120 bike availability + 60/21600 bike stations + 60/43200 bus routes + 60/120 TRA
+    expect(estimatedCallsPerMinute(c)).toBeCloseTo(1 + 0.5 + 60 / 21600 + 60 / 43200 + 0.5, 6);
   });
 });

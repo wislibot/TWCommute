@@ -79,3 +79,45 @@ export interface TdxTraLiveTrainDelay {
   SrcUpdateTime?: string;
   UpdateTime?: string;
 }
+
+/** Bus stop (static). `City` / `LocationCityCode` give the stop's city directly. */
+export interface TdxBusStop {
+  StopUID: string;
+  StopID: string;
+  AuthorityID?: string;
+  StopName: TdxName;
+  StopPosition: TdxPoint;
+  StationID?: string;
+  City?: string;
+  CityCode?: string;
+  LocationCityCode?: string;
+}
+
+export interface TdxBusSubRoute {
+  SubRouteUID: string;
+  SubRouteID: string;
+  SubRouteName?: TdxName;
+  Direction?: number;
+  Headsign?: string;
+}
+
+/** Bus route (static). A route has one or more sub-routes (variants/directions). */
+export interface TdxBusRoute {
+  RouteUID: string;
+  RouteID: string;
+  RouteName: TdxName;
+  SubRoutes?: TdxBusSubRoute[];
+  BusRouteType?: number;
+  City?: string;
+  CityCode?: string;
+}
+
+/** TRA station (static), including the city it is located in. */
+export interface TdxTraStation {
+  StationUID: string;
+  StationID: string;
+  StationName: TdxName;
+  StationPosition: TdxPoint;
+  LocationCity?: string;
+  LocationCityCode?: string;
+}

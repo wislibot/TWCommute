@@ -1,5 +1,5 @@
 import type { Itinerary, Leg } from "@twc/contracts";
-import { localId } from "../lib/ids";
+import { localId, tdxRouteKey } from "../lib/ids";
 import type { EtaQuery, EtaResult, IngestClient } from "../lib/ingest-client";
 
 /**
@@ -7,15 +7,15 @@ import type { EtaQuery, EtaResult, IngestClient } from "../lib/ingest-client";
  * For bus legs leaving soon, we attach TDX's live "next bus at this stop" ETA so the app can
  * show "arrives in 6 min" next to the scheduled time.
  *
- * Assumption (verified in Phase 0, docs/DATA.md): the TDX-built GTFS uses TDX StopUID /
- * RouteUID as stop_id / route_id, so stripping the OTP feed prefix gives the TDX ids.
+ * Id mapping (verified in the Phase 0 audit, docs/DATA.md): GTFS stop_id = TDX StopUID and
+ * route_id = `<SubRouteUID>_<Direction>`.
  */
 export function etaQueryForLeg(leg: Leg): EtaQuery | null {
   if (leg.mode !== "BUS" && leg.mode !== "COACH") return null;
   const stopUid = localId(leg.from.stopId);
-  const routeUid = localId(leg.route?.id);
-  if (!stopUid || !routeUid) return null;
-  return { stopUid, routeUid };
+  const route = tdxRouteKey(leg.route?.id);
+  if (!stopUid || !route) return null;
+  return { stopUid, ...route };
 }
 
 function isLeavingSoon(leg: Leg, now: Date, windowMinutes: number): boolean {

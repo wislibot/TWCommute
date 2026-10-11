@@ -9,12 +9,16 @@ export interface TdxClientOptions {
   clientSecret: string;
   /** Requests per second allowed for this key (depends on the TDX subscription tier). */
   ratePerSecond?: number;
+  /** Requests that may be sent back-to-back before the rate applies (TDX limits per minute window). */
+  burst?: number;
   maxRetries?: number;
   /** Refresh the token this long before it expires. */
   tokenRefreshMarginMs?: number;
   fetch?: typeof fetch;
   clock?: Clock;
   authUrl?: string;
+  /** Observe every data response (not token requests), e.g. to count calls or read rate-limit headers. */
+  onResponse?: (info: { url: string; status: number; headers: Headers }) => void;
 }
 
 export class TdxError extends Error {
@@ -55,7 +59,7 @@ export class TdxClient {
     }
     this.clock = options.clock ?? systemClock;
     this.fetchImpl = options.fetch ?? fetch;
-    this.limiter = new RateLimiter(options.ratePerSecond ?? 5, undefined, this.clock);
+    this.limiter = new RateLimiter(options.ratePerSecond ?? 5, options.burst, this.clock);
     this.maxRetries = options.maxRetries ?? 3;
     this.refreshMarginMs = options.tokenRefreshMarginMs ?? 5 * 60_000;
     this.authUrl = options.authUrl ?? TDX_AUTH_URL;
@@ -92,6 +96,7 @@ export class TdxClient {
         await this.clock.sleep(backoffMs(attempt));
         continue;
       }
+      this.options.onResponse?.({ url, status: res.status, headers: res.headers });
       if (res.ok) return res;
       if (res.status === 401 && !refreshedToken) {
         refreshedToken = true;

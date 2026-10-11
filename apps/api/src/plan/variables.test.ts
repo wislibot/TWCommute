@@ -51,3 +51,13 @@ describe("helpers", () => {
     expect(toTaipeiIso(new Date("2026-10-11T16:30:00Z"))).toBe("2026-10-12T00:30:00+08:00");
   });
 });
+
+describe("tdxRouteKey", () => {
+  it("splits TDX GTFS route ids into sub-route and direction", async () => {
+    const { tdxRouteKey } = await import("../lib/ids");
+    expect(tdxRouteKey("tw:TPE104710_0")).toEqual({ subRouteUid: "TPE104710", direction: 0 });
+    expect(tdxRouteKey("tw:THB0968A2_1")).toEqual({ subRouteUid: "THB0968A2", direction: 1 });
+    expect(tdxRouteKey("trtc:R")).toEqual({ subRouteUid: "R" });
+    expect(tdxRouteKey(undefined)).toBeUndefined();
+  });
+});

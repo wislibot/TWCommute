@@ -1,5 +1,5 @@
 import type { Departure, DepartureBoard, StopSummary } from "@twc/contracts";
-import { localId } from "../lib/ids";
+import { localId, tdxRouteKey } from "../lib/ids";
 import type { EtaResult, IngestClient } from "../lib/ingest-client";
 import type { OtpClient } from "../otp/client";
 import { STOP_DEPARTURES_QUERY, STOPS_NEARBY_QUERY } from "../otp/queries";
@@ -80,18 +80,17 @@ export async function stopDepartures(stopId: string, deps: StopDeps): Promise<De
         ...(hasRt ? { estimated: new Date(base + (st.realtimeDeparture ?? 0) * 1000).toISOString() } : {}),
         realtime: hasRt ? "live" : "scheduled",
       };
-      const routeUid = localId(trip.route.gtfsId);
-      if (!hasRt && routeUid && !usedRoutes.has(routeUid)) {
-        const direction = trip.directionId === null ? undefined : Number(trip.directionId);
+      const route = tdxRouteKey(trip.route.gtfsId);
+      const routeKey = trip.route.gtfsId;
+      if (!hasRt && route && !usedRoutes.has(routeKey)) {
+        const direction = route.direction ?? (trip.directionId === null ? undefined : Number(trip.directionId));
         const eta = etas
           .filter(
-            (e) =>
-              (e.routeUid === routeUid || e.subRouteUid === routeUid) &&
-              (direction === undefined || e.direction === direction),
+            (e) => matchesSubRoute(e, route.subRouteUid) && (direction === undefined || e.direction === direction),
           )
           .find((e) => e.etaSeconds !== null);
         if (eta && eta.etaSeconds !== null) {
-          usedRoutes.add(routeUid);
+          usedRoutes.add(routeKey);
           dep.realtime = "live";
           dep.live = { etaSeconds: eta.etaSeconds, asOf: eta.asOf, source: "tdx-eta", isLastBus: eta.isLastBus };
         }
@@ -111,4 +110,9 @@ export async function stopDepartures(stopId: string, deps: StopDeps): Promise<De
     },
     departures,
   };
+}
+
+/** Same rule as the ingest ETA lookup: the GTFS route key is the sub-route, or the route itself. */
+function matchesSubRoute(e: EtaResult, subRouteUid: string): boolean {
+  return e.subRouteUid === subRouteUid || e.routeUid === subRouteUid;
 }

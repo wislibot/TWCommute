@@ -34,6 +34,8 @@
 - *Rail (TRA):* ingest converts `LiveTrainDelay` (train number + last station + minutes late) into GTFS-RT TripUpdates. OTP propagates the delay and re-routes on it.
 - *Buses:* OTP routes on timetables. For bus legs leaving within 45 min, the API attaches TDX's live "next bus at this stop" ETA, and the app shows "Live: arrives in 6 min" next to the scheduled time. When TDX publishes GTFS-RT, ingest can relay it to OTP instead.
 
+**Stays at stops along the way.** OTP enforces `minimumWaitTime` at a via but times the walk away from it as early as possible, so the stay would show up as waiting at the next bus stop. The API moves those street legs to just before the next departure (2-minute buffer), so the app shows the time at the place the user chose. Verified against OTP 2.10 by `infra/smoke`.
+
 **Honest labels.** Every leg and departure is `live` or `scheduled`; dock availability is `null` when no live data exists; TPASS coverage is `unknown` when a leg can't be placed in a city.
 
 **YouBike via GBFS.** One GBFS system per docked service type (2.0 incl. 2.0E e-bikes, and 1.0), so OTP never routes a 2.0 bike into a 1.0 dock. Moovo (e-fence, no docks) is excluded for now.

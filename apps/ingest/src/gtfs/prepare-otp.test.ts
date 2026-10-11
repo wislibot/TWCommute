@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { strToU8, unzipSync, zipSync } from "fflate";
 import { describe, expect, it } from "vitest";
-import { feedIdFromName, renderOtpConfigs, splitBundle } from "./prepare-otp";
+import { dropFiles, feedIdFromName, renderOtpConfigs, splitBundle } from "./prepare-otp";
 
 const traAgency = strToU8("agency_id,agency_name\nTRA,臺鐵\n");
 const busAgency = strToU8("agency_id,agency_name\nTPE,臺北市公車\n");
@@ -70,5 +70,22 @@ describe("renderOtpConfigs", () => {
     expect(JSON.parse(out.routerConfig).updaters.every((u: { type: string }) => u.type !== "stop-time-updater")).toBe(
       true,
     );
+  });
+});
+
+describe("dropFiles", () => {
+  it("removes fare files OTP does not need and keeps everything else", () => {
+    const feed = zipSync({
+      "stops.txt": strToU8("stop_id\n1\n"),
+      "fare_leg_rules.txt": strToU8("x\n"),
+      "fare_products.txt": strToU8("y\n"),
+    });
+    const { data, dropped } = dropFiles(feed);
+    expect(dropped.sort()).toEqual(["fare_leg_rules.txt", "fare_products.txt"]);
+    expect(Object.keys(unzipSync(data))).toEqual(["stops.txt"]);
+  });
+  it("returns the same bytes when there is nothing to drop", () => {
+    const feed = zipSync({ "stops.txt": strToU8("stop_id\n1\n") });
+    expect(dropFiles(feed).data).toBe(feed);
   });
 });

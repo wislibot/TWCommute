@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseIsoDuration } from "../lib/duration";
 import { itineraryWithVia } from "../otp/fixtures";
-import { mapItinerary } from "./map";
+import { mapItinerary, shiftIso } from "./map";
 
 describe("mapItinerary", () => {
   const it0 = mapItinerary(itineraryWithVia, "x-0");
@@ -39,5 +39,30 @@ describe("parseIsoDuration", () => {
     expect(parseIsoDuration("-PT2M")).toBe(-120);
     expect(parseIsoDuration("P1DT1H")).toBe(90000);
     expect(parseIsoDuration("nope")).toBeUndefined();
+  });
+});
+
+describe("via stays", () => {
+  // Same fixture, but the bus after the via leaves 20 minutes later than the walk back reaches the stop.
+  const late = structuredClone(itineraryWithVia);
+  const bus = late.legs[4];
+  if (bus) bus.start = { scheduledTime: "2026-10-11T11:30:00+08:00", estimated: null };
+
+  it("moves the walk back from a via next to the departure, keeping a buffer", () => {
+    const legs = mapItinerary(late, "x").legs;
+    expect(legs[3]?.start.scheduled).toBe("2026-10-11T11:25:00+08:00");
+    expect(legs[3]?.end.scheduled).toBe("2026-10-11T11:28:00+08:00");
+    // The stay at the via is now arrival → shifted departure.
+    expect(legs[2]?.end.scheduled).toBe("2026-10-11T09:35:00+08:00");
+  });
+
+  it("leaves legs alone when there is no slack beyond the buffer", () => {
+    const legs = mapItinerary(itineraryWithVia, "x").legs;
+    expect(legs[3]?.start.scheduled).toBe("2026-10-11T11:05:00+08:00");
+  });
+
+  it("shifts ISO times keeping the offset", () => {
+    expect(shiftIso("2026-10-11T23:50:00+08:00", 20 * 60_000)).toBe("2026-10-12T00:10:00+08:00");
+    expect(shiftIso("2026-10-11T10:00:00Z", 60_000)).toBe("2026-10-11T10:01:00.000Z");
   });
 });

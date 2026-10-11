@@ -4,6 +4,7 @@ import {
   getBikeAvailability,
   getBikeStations,
   getBusEta,
+  getBusRoutes,
   getTraLiveTrainDelay,
   type TdxClient,
 } from "@twc/tdx";
@@ -21,6 +22,9 @@ export interface State {
   /** Latest encoded GTFS-RT TripUpdates for TRA, served to OTP. */
   traTripUpdates: Uint8Array | null;
 }
+
+/** Route lists change rarely; refresh twice a day (1 request per city per 12 h). */
+const BUS_ROUTES_INTERVAL_MS = 12 * 3600_000;
 
 /** All polling jobs, with start offsets so cities are spread across the interval. */
 export function buildJobs(
@@ -59,6 +63,16 @@ export function buildJobs(
   ];
   const busMs = config.BUS_ETA_INTERVAL_S * 1000;
   busFeeds.forEach((feed, i) => {
+    jobs.push({
+      delayMs: spread(i, busFeeds.length, 10_000),
+      job: {
+        name: `bus-routes:${feed}`,
+        intervalMs: BUS_ROUTES_INTERVAL_MS,
+        run: async () => {
+          state.busEta.setRoutes(feed, await getBusRoutes(tdx, feed));
+        },
+      },
+    });
     jobs.push({
       delayMs: spread(i, busFeeds.length, busMs),
       job: {

@@ -43,6 +43,18 @@ pnpm check          # biome lint + typecheck + tests across the workspace
 4. `infra/scripts/build-graph.sh` builds the OTP graph.
 5. `docker compose -f infra/docker-compose.yml up -d`. The API is then on `:3000`, OTP on `:8080` (debug UI), ingest on `:8081`.
 
+### Without Docker
+
+OpenTripPlanner 2.10 runs from its jar with Java 25+: `OTP_JAR=… JAVA=… infra/scripts/otp-local.sh build|serve`.
+
+### End-to-end smoke test
+
+`infra/smoke/run.sh` builds a synthetic city (street grid, one bus line, two YouBike docks), builds and serves it with the real OpenTripPlanner, runs the API against it with a fixture ingest server, and checks: GBFS docks load in OTP, multi-stop plans keep the requested stay, bike legs carry dock risk, and search/nearby/departures work. No TDX or OSM download needed; CI runs it on every push.
+
+### Phase 0 audit
+
+`pnpm --filter @twc/ingest audit` downloads GTFS (if needed), queries TDX for a few cities and writes `data/audit/report.md`, which measures every data assumption listed in [docs/DATA.md](docs/DATA.md).
+
 ### Mobile app
 
 ```bash

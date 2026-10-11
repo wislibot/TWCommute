@@ -7,7 +7,7 @@
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { gtfsPaths, readIfExists } from "./files";
-import { renderOtpConfigs, splitBundle } from "./prepare-otp";
+import { dropFiles, renderOtpConfigs, splitBundle } from "./prepare-otp";
 
 async function main() {
   const dataDir = process.env.DATA_DIR ?? "./data";
@@ -32,7 +32,12 @@ async function main() {
 
   await rm(join(otpDir, "gtfs"), { recursive: true, force: true });
   await mkdir(join(otpDir, "gtfs"), { recursive: true });
-  for (const f of feeds) await writeFile(join(otpDir, "gtfs", f.fileName), f.data);
+  for (const f of feeds) {
+    const { data, dropped } = dropFiles(f.data);
+    f.data = data;
+    if (dropped.length) console.log(`  ${f.feedId}: dropped ${dropped.join(", ")} (not used by OTP)`);
+    await writeFile(join(otpDir, "gtfs", f.fileName), f.data);
+  }
 
   const rendered = renderOtpConfigs(
     {

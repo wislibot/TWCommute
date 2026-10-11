@@ -1,6 +1,6 @@
 # Data sources and the Phase 0 audit
 
-Nothing in this file has been run against live TDX data yet: it needs a TDX API key. The code ships with unit tests on synthetic fixtures; the checks below decide whether its assumptions hold.
+The first audit against live TDX data ran on 2026-10-11 (results below). Re-run it with `pnpm --filter @twc/ingest audit` whenever TDX changes its feeds.
 
 ## Sources
 
@@ -27,21 +27,47 @@ TDX GTFS-Realtime is documented but its delivery is "in progress" (TDX GTFS docs
 
 ## Phase 0 checklist
 
-Run with real credentials (`.env`), then record results here.
+Run `pnpm --filter @twc/ingest audit` with real credentials: it measures items 1, 4, 5 and 6 below and writes `data/audit/report.md`. Then record results here.
 
 1. **Download and inspect GTFS.** Run `pnpm --filter @twc/ingest fetch-gtfs`, read `data/gtfs/manifest.json`: is the national file one feed or a zip of zips? Then run `prepare-otp`: which feed ids come out, and is the TRA feed detected?
 2. **Validate GTFS** with the MobilityData validator. Note errors that block OTP (missing `stop_times`, `frequencies.txt` use for buses, calendar coverage).
 3. **Build the graph.** First a Greater Taipei extract (`BBOX=121.28,24.85,121.80,25.30 infra/scripts/fetch-data.sh`), then all of Taiwan on a 32 GB machine. Record memory and time.
 4. **Check id mapping assumptions** (code depends on these):
-   - Bus `stop_id` / `route_id` in TDX GTFS equal TDX `StopUID` / `RouteUID` (`apps/api/src/plan/live-overlay.ts`). Measure: % of bus legs that get a live ETA.
+   - Bus `stop_id` = TDX `StopUID`; `route_id` = `<SubRouteUID>_<Direction>` (`apps/api/src/lib/ids.ts`, `apps/api/src/plan/live-overlay.ts`). Measure: % of ETA rows the lookup can join.
    - TDX city codes prefix bus `stop_id`s (`TPE…`, `NWT…`) (`packages/fares/src/cities.ts`). Measure: % of TPASS results that are `unknown`.
-   - TRA `trip_short_name` is the train number and stations map by `stop_code` / trailing digits (`apps/ingest/src/gtfs/tra-index.ts`). Ingest logs matched vs unmatched delays every poll.
+   - TRA train number from `trip_short_name`, else from `route_id` (`TRA_<trainNo>_…`); one trip per service date; stations `TRA_<StationID>` (`apps/ingest/src/gtfs/tra-index.ts`). Ingest logs matched vs unmatched delays every poll.
    - OTP `vehicleRentalStation.stationId` carries the TDX `StationUID` (used for TPASS city lookup).
 5. **Live data quality per city:** ETA freshness (`SrcUpdateTime` lag), share of stops with predictions, ghost buses.
-6. **TDX plan and terms:** confirm the tier for ≈1 call/s (all cities: 23 bus feeds every 30s + 15 bike cities every 60s + TRA every 60s ≈ 2.7M calls/month). Reduce with `BUS_CITIES` / intervals if needed, and check the streaming ETA endpoints. Confirm commercial-use and attribution wording, and apply for the academic/public-interest discount if eligible.
+6. **TDX plan and terms:** the free plan allows 5 requests/minute (measured). All cities (23 bus feeds every 30 s + 15 bike cities every 60 s + TRA every 60 s) need ≈ 62 requests/minute ≈ 2.7M calls/month. Reduce with `BUS_CITIES` / intervals if needed, and check the streaming ETA endpoints. Confirm commercial-use and attribution wording, and apply for the academic/public-interest discount if eligible.
 7. **License class:** confirm every dataset we use is marked 免審核 in its TDX metadata (詮釋資料); email tdx@motc.gov.tw to confirm the attribution wording.
 8. **TPASS data:** verify every pass in `packages/fares/src/tpass.ts` against official pages and set `verifiedAt`.
 
 ## Results
 
-_To be filled in during Phase 0._
+### Run 1 — 2026-10-11 17:37 UTC (01:37 Taipei, buses not running)
+
+Audited Taipei, New Taipei, Taichung, Kaohsiung and intercity buses; raw report in `data/audit/report.md`.
+
+**GTFS**
+- The national download (`/V3/Map/GTFS/Static`) is **one flat feed of 466 MB**, not a zip of zips: 397 agencies, 10,005 routes (bus 8,625 · rail 1,279 · metro 49 · ferry 49 · air 3), 196,658 trips, 163,150 stops. `stop_times.txt` is 370 MB uncompressed; calendar 2026-10-01 → 2026-12-31.
+- It also carries **~7 GB of fare tables** (`fare_leg_rules.txt` 3.8 GB, `fare_products.txt` 2.9 GB). `prepare-otp` now drops all fare files before OTP builds; TPASS coverage is ours.
+- 7,218 `frequencies.txt` rows (headway-based trips). Translations: English only (no Japanese/Korean names), which matches our display rules.
+- Taipei Metro comes as a separate 1 MB feed (`trtc`, 727 stops such as `BL01_UP`).
+
+**Bus ids** (live-ETA overlay)
+- `stop_id` = TDX `StopUID` for **100%** of stops in all five areas. ✅
+- `route_id` is **`<SubRouteUID>_<Direction>`** (`TPE104710_0` for route `TPE10471`, sub-route `TPE104710`), not `RouteUID` (0% exact matches). The overlay assumed `RouteUID` and would never have attached an ETA. **Fixed:** `tdxRouteKey()` parses the key, and the ingest lookup matches sub-route + direction.
+- City codes prefix 83.4% of all stop_ids. The rest are rail, air and ferry stops and intercity (`THB…`) stops, which TPASS reports as "unknown".
+
+**TRA**
+- Agency `TRA` (交通部臺灣鐵路管理局). There is **no `trip_short_name`**: the train number is in `route_id` (`TRA_1004_0_1132` = train 1004), and trips are **one per service date** (`…_20261011_102700`). Stops are `TRA_<StationID>`.
+- The mapper indexed 0 trains, so all 51 live delays were unmatched. **Fixed:** train numbers are parsed from route ids, the trip for the current service day is chosen (yesterday's before 04:00 for overnight trains), and only `TRA_` stops are indexed, so 4-digit bus stop suffixes can't collide.
+
+**YouBike** (Taipei, New Taipei, Taichung, Kaohsiung)
+- 6,785 stations, all YouBike 2.0, **100% joined** with availability, with e-bike counts on every row. Data is ~60 s old. At night 1.5–4.7% of active stations had no bikes and 0.3–3.0% had no docks.
+
+**Bus ETAs**
+- Data was 7–32 s old (intercity up to 93 min old for some rows). Almost no rows had an estimate because no buses were running (StopStatus 3 "last bus passed" / 4 "not operating today"). **Re-measure in daytime.**
+
+**TDX plan** ❗
+- Response headers: `ratelimit-limit: 5`, `x-ratelimit-limit-minute: 5`, i.e. the free member plan allows **5 requests per minute**. Polling every city every 30–60 s needs about **60 requests/minute**, so production requires a paid plan. Ingest defaults now fit the free plan: Taipei only, about 2 requests/minute. It warns at startup when the configured polling exceeds `TDX_RATE_PER_MINUTE`.

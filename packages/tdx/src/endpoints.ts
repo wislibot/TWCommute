@@ -1,5 +1,13 @@
 import type { TdxClient } from "./client";
-import type { TdxBikeAvailability, TdxBikeStation, TdxBusEta, TdxTraLiveTrainDelay } from "./types";
+import type {
+  TdxBikeAvailability,
+  TdxBikeStation,
+  TdxBusEta,
+  TdxBusRoute,
+  TdxBusStop,
+  TdxTraLiveTrainDelay,
+  TdxTraStation,
+} from "./types";
 
 /** Cities with public-bike data in TDX (enum from the 公共運輸-自行車 v2 spec). */
 export const BIKE_CITIES = [
@@ -78,6 +86,18 @@ export function getBusEta(client: TdxClient, city: BusCity | "InterCity"): Promi
   const path =
     city === "InterCity" ? "/v2/Bus/EstimatedTimeOfArrival/InterCity" : `/v2/Bus/EstimatedTimeOfArrival/City/${city}`;
   return client.getJson(path, { $select: BUS_ETA_FIELDS });
+}
+
+export function getBusStops(client: TdxClient, city: BusCity | "InterCity"): Promise<TdxBusStop[]> {
+  return client.getJson(city === "InterCity" ? "/v2/Bus/Stop/InterCity" : `/v2/Bus/Stop/City/${city}`);
+}
+
+export function getBusRoutes(client: TdxClient, city: BusCity | "InterCity"): Promise<TdxBusRoute[]> {
+  return client.getJson(city === "InterCity" ? "/v2/Bus/Route/InterCity" : `/v2/Bus/Route/City/${city}`);
+}
+
+export function getTraStations(client: TdxClient): Promise<TdxTraStation[]> {
+  return client.getJson("/v2/Rail/TRA/Station");
 }
 
 export function getTraLiveTrainDelay(client: TdxClient): Promise<TdxTraLiveTrainDelay[]> {

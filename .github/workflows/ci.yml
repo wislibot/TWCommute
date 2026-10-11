@@ -19,3 +19,34 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
+
+  # End-to-end: real OpenTripPlanner on a synthetic city + our API + a fixture ingest server.
+  smoke:
+    runs-on: ubuntu-latest
+    env:
+      OTP_VERSION: 2.10.0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+      - run: sudo apt-get update && sudo apt-get install -y osmium-tool
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/cache@v4
+        with:
+          path: data/tools
+          key: otp-${{ env.OTP_VERSION }}
+      - name: Download OpenTripPlanner
+        run: |
+          mkdir -p data/tools
+          [ -f data/tools/otp-shaded-$OTP_VERSION.jar ] || curl -fsSL --retry 4 -o data/tools/otp-shaded-$OTP_VERSION.jar \
+            https://repo1.maven.org/maven2/org/opentripplanner/otp-shaded/$OTP_VERSION/otp-shaded-$OTP_VERSION.jar
+      - run: infra/smoke/run.sh
+      - if: failure()
+        run: tail -n 50 data/smoke/logs/*.log

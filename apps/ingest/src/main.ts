@@ -1,7 +1,7 @@
 import { TdxClient } from "@twc/tdx";
 import { BikeStore } from "./bike/store";
 import { BusEtaStore } from "./bus/eta-store";
-import { estimatedCallsPerSecond, loadConfig } from "./config";
+import { estimatedCallsPerMinute, loadConfig } from "./config";
 import { gtfsPaths, readIfExists } from "./gtfs/files";
 import { buildTraIndexFromZip, emptyTraIndex } from "./gtfs/tra-index";
 import { buildJobs, type State } from "./jobs";
@@ -41,13 +41,20 @@ async function main() {
   const tdx = new TdxClient({
     clientId: config.TDX_CLIENT_ID,
     clientSecret: config.TDX_CLIENT_SECRET,
-    ratePerSecond: config.TDX_RATE_PER_SECOND,
+    ratePerSecond: config.TDX_RATE_PER_MINUTE / 60,
+    burst: Math.max(1, Math.floor(config.TDX_RATE_PER_MINUTE)),
   });
-  const perSecond = estimatedCallsPerSecond(config);
+  const perMinute = estimatedCallsPerMinute(config);
   log.info(
-    { callsPerSecond: perSecond.toFixed(2), callsPerMonth: Math.round(perSecond * 86_400 * 30) },
+    { callsPerMinute: perMinute.toFixed(1), allowedPerMinute: config.TDX_RATE_PER_MINUTE },
     "estimated TDX usage",
   );
+  if (perMinute > config.TDX_RATE_PER_MINUTE) {
+    log.warn(
+      { callsPerMinute: perMinute.toFixed(1), allowedPerMinute: config.TDX_RATE_PER_MINUTE },
+      "polling needs more TDX requests than the plan allows; data will lag. Reduce cities/intervals or upgrade the TDX plan",
+    );
+  }
 
   const scheduler = new Scheduler(health, log);
   for (const { job, delayMs } of buildJobs(config, tdx, state, log)) scheduler.add(job, delayMs);
