@@ -1,0 +1,58 @@
+# Local/production stack: ingest (TDX polling) → OTP (routing) ← api (public HTTP API).
+#   cp .env.example .env            # add TDX credentials
+#   infra/scripts/fetch-data.sh     # GTFS + OSM → data/
+#   infra/scripts/build-graph.sh    # OTP graph → data/otp/graph.obj
+#   docker compose -f infra/docker-compose.yml up -d
+name: twcommute
+
+services:
+  ingest:
+    build:
+      context: ..
+      dockerfile: apps/ingest/Dockerfile
+    env_file: ../.env
+    environment:
+      PUBLIC_BASE_URL: http://ingest:8081
+      DATA_DIR: /data
+    volumes:
+      - ../data:/data
+    ports:
+      - "8081:8081"
+    restart: unless-stopped
+
+  otp:
+    image: docker.io/opentripplanner/opentripplanner:2.10.0
+    command: ["--load", "--serve"]
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xmx${OTP_HEAP:-12g}"
+    volumes:
+      - ../data/otp:/var/opentripplanner
+    ports:
+      - "8080:8080"
+    depends_on:
+      - ingest
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    env_file: ../.env
+    environment:
+      OTP_URL: http://otp:8080/otp/gtfs/v1
+      INGEST_URL: http://ingest:8081
+    ports:
+      - "3000:3000"
+    depends_on:
+      - otp
+      - ingest
+    restart: unless-stopped
+
+  # One-off graph builds: docker compose -f infra/docker-compose.yml run --rm otp-build ...
+  otp-build:
+    image: docker.io/opentripplanner/opentripplanner:2.10.0
+    profiles: ["build"]
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xmx${OTP_BUILD_HEAP:-24g}"
+    volumes:
+      - ../data/otp:/var/opentripplanner

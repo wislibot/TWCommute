@@ -1,0 +1,9 @@
+packages:
+  - apps/*
+  - packages/*
+
+# React Native / Metro resolve most reliably with a hoisted node_modules layout.
+nodeLinker: hoisted
+
+onlyBuiltDependencies:
+  - esbuild

@@ -1,0 +1,26 @@
+{
+  "name": "@twc/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "start": "tsx src/main.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.3.1",
+    "@fastify/rate-limit": "^11.2.1",
+    "@twc/contracts": "workspace:*",
+    "@twc/fares": "workspace:*",
+    "fastify": "^5.12.5",
+    "tsx": "^4.23.15",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "graphql": "^17.0.2",
+    "vitest": "^5.0.3"
+  }
+}

@@ -1,0 +1,23 @@
+node_modules/
+.turbo/
+dist/
+coverage/
+*.log
+.env
+.env.*
+!.env.example
+
+# Large downloaded data (GTFS zips, OSM extracts, OTP graphs)
+data/
+infra/data/
+
+# Expo / React Native
+apps/mobile/.expo/
+apps/mobile/ios/
+apps/mobile/android/
+apps/mobile/dist/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision

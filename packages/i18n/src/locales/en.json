@@ -1,0 +1,101 @@
+{
+  "app": { "name": "TWCommute" },
+  "common": {
+    "search": "Search",
+    "from": "From",
+    "to": "To",
+    "now": "Now",
+    "cancel": "Cancel",
+    "done": "Done",
+    "retry": "Retry",
+    "loading": "Loading…",
+    "minutes": "{{count}} min",
+    "currentLocation": "Current location"
+  },
+  "plan": {
+    "title": "Plan a trip",
+    "fromPlaceholder": "Where from?",
+    "toPlaceholder": "Where to?",
+    "addStop": "Add a stop",
+    "removeStop": "Remove stop",
+    "stayFor": "Stay for",
+    "departAt": "Depart at",
+    "arriveBy": "Arrive by",
+    "useYouBike": "Use YouBike",
+    "go": "Find routes",
+    "maxStops": "You can add up to {{count}} stops"
+  },
+  "results": {
+    "title": "Routes",
+    "transfers_one": "{{count}} transfer",
+    "transfers_other": "{{count}} transfers",
+    "walk": "Walk {{distance}}",
+    "noRoutes": "No routes found. Try another time or turn on YouBike.",
+    "later": "Later departures",
+    "earlier": "Earlier departures"
+  },
+  "leg": {
+    "WALK": "Walk",
+    "BICYCLE": "YouBike",
+    "SUBWAY": "MRT",
+    "RAIL": "Train",
+    "BUS": "Bus",
+    "COACH": "Coach",
+    "TRAM": "Light rail",
+    "FERRY": "Ferry",
+    "GONDOLA": "Gondola",
+    "AIRPLANE": "Flight",
+    "OTHER": "Transit",
+    "towards": "towards {{headsign}}",
+    "stayAt": "Stay at {{place}} for {{minutes}} min",
+    "pickUpBike": "Pick up a bike at {{station}}",
+    "returnBike": "Return the bike at {{station}}"
+  },
+  "realtime": {
+    "live": "Live",
+    "scheduled": "Scheduled",
+    "arrivesIn": "Arrives in {{minutes}} min",
+    "arriving": "Arriving",
+    "lastBus": "Last bus"
+  },
+  "risk": {
+    "low": "Docks look fine",
+    "medium": "Dock may be busy",
+    "high": "Dock likely full or empty",
+    "few_bikes_at_pickup": "Few bikes left at pickup",
+    "no_bikes_at_pickup": "No bikes at pickup right now",
+    "few_docks_at_dropoff": "Few free docks at drop-off",
+    "no_docks_at_dropoff": "No free docks at drop-off right now",
+    "long_lead_time": "Availability can change before you get there",
+    "no_realtime": "No live dock data",
+    "backup": "Backup: {{station}}"
+  },
+  "bike": {
+    "bikes": "Bikes",
+    "ebikes": "E-bikes",
+    "docks": "Free docks"
+  },
+  "tpass": {
+    "title": "TPASS",
+    "none": "No pass",
+    "covered": "Covered by your TPASS",
+    "partial": "Partly covered by your TPASS",
+    "not_covered": "Not covered by your TPASS",
+    "unknown": "May be covered by your TPASS"
+  },
+  "stop": {
+    "departures": "Departures",
+    "noDepartures": "No departures in the next hour"
+  },
+  "settings": {
+    "title": "Settings",
+    "language": "Language",
+    "tpassPass": "My TPASS pass",
+    "about": "About",
+    "dataSource": "Transit data: Ministry of Transportation and Communications TDX. Map data © OpenStreetMap contributors."
+  },
+  "errors": {
+    "network": "Can't reach TWCommute. Check your connection.",
+    "generic": "Something went wrong."
+  }
+}

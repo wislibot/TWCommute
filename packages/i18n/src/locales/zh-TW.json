@@ -1,0 +1,101 @@
+{
+  "app": { "name": "TWCommute" },
+  "common": {
+    "search": "搜尋",
+    "from": "起點",
+    "to": "終點",
+    "now": "現在",
+    "cancel": "取消",
+    "done": "完成",
+    "retry": "重試",
+    "loading": "載入中…",
+    "minutes": "{{count}} 分鐘",
+    "currentLocation": "目前位置"
+  },
+  "plan": {
+    "title": "規劃行程",
+    "fromPlaceholder": "從哪裡出發？",
+    "toPlaceholder": "要去哪裡？",
+    "addStop": "新增停留點",
+    "removeStop": "移除停留點",
+    "stayFor": "停留",
+    "departAt": "出發時間",
+    "arriveBy": "抵達時間",
+    "useYouBike": "使用 YouBike",
+    "go": "搜尋路線",
+    "maxStops": "最多可新增 {{count}} 個停留點"
+  },
+  "results": {
+    "title": "路線",
+    "transfers_one": "轉乘 {{count}} 次",
+    "transfers_other": "轉乘 {{count}} 次",
+    "walk": "步行 {{distance}}",
+    "noRoutes": "找不到路線。請換個時間，或開啟 YouBike。",
+    "later": "較晚班次",
+    "earlier": "較早班次"
+  },
+  "leg": {
+    "WALK": "步行",
+    "BICYCLE": "YouBike",
+    "SUBWAY": "捷運",
+    "RAIL": "火車",
+    "BUS": "公車",
+    "COACH": "客運",
+    "TRAM": "輕軌",
+    "FERRY": "渡輪",
+    "GONDOLA": "纜車",
+    "AIRPLANE": "飛機",
+    "OTHER": "大眾運輸",
+    "towards": "往 {{headsign}}",
+    "stayAt": "在{{place}}停留 {{minutes}} 分鐘",
+    "pickUpBike": "在{{station}}借車",
+    "returnBike": "在{{station}}還車"
+  },
+  "realtime": {
+    "live": "即時",
+    "scheduled": "表定",
+    "arrivesIn": "{{minutes}} 分鐘後到站",
+    "arriving": "即將進站",
+    "lastBus": "末班車"
+  },
+  "risk": {
+    "low": "車位充足",
+    "medium": "車位可能吃緊",
+    "high": "可能無車或無位",
+    "few_bikes_at_pickup": "借車站可借車輛不多",
+    "no_bikes_at_pickup": "借車站目前無車可借",
+    "few_docks_at_dropoff": "還車站空位不多",
+    "no_docks_at_dropoff": "還車站目前無空位",
+    "long_lead_time": "抵達前車位狀況可能改變",
+    "no_realtime": "無即時車位資料",
+    "backup": "備用站點：{{station}}"
+  },
+  "bike": {
+    "bikes": "可借",
+    "ebikes": "電輔車",
+    "docks": "可還"
+  },
+  "tpass": {
+    "title": "TPASS",
+    "none": "未使用月票",
+    "covered": "TPASS 月票適用",
+    "partial": "TPASS 月票部分適用",
+    "not_covered": "TPASS 月票不適用",
+    "unknown": "TPASS 月票可能適用"
+  },
+  "stop": {
+    "departures": "即將發車",
+    "noDepartures": "未來一小時內沒有班次"
+  },
+  "settings": {
+    "title": "設定",
+    "language": "語言",
+    "tpassPass": "我的 TPASS 月票",
+    "about": "關於",
+    "dataSource": "交通資料：交通部 TDX 運輸資料流通服務。地圖資料 © OpenStreetMap 貢獻者。"
+  },
+  "errors": {
+    "network": "無法連線至 TWCommute，請檢查網路連線。",
+    "generic": "發生錯誤。"
+  }
+}

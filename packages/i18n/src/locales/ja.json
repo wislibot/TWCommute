@@ -1,0 +1,101 @@
+{
+  "app": { "name": "TWCommute" },
+  "common": {
+    "search": "検索",
+    "from": "出発",
+    "to": "到着",
+    "now": "現在",
+    "cancel": "キャンセル",
+    "done": "完了",
+    "retry": "再試行",
+    "loading": "読み込み中…",
+    "minutes": "{{count}}分",
+    "currentLocation": "現在地"
+  },
+  "plan": {
+    "title": "ルート検索",
+    "fromPlaceholder": "出発地",
+    "toPlaceholder": "目的地",
+    "addStop": "立ち寄り先を追加",
+    "removeStop": "立ち寄り先を削除",
+    "stayFor": "滞在時間",
+    "departAt": "出発時刻",
+    "arriveBy": "到着時刻",
+    "useYouBike": "YouBikeを使う",
+    "go": "ルートを検索",
+    "maxStops": "立ち寄り先は最大{{count}}か所までです"
+  },
+  "results": {
+    "title": "ルート",
+    "transfers_one": "乗換{{count}}回",
+    "transfers_other": "乗換{{count}}回",
+    "walk": "徒歩 {{distance}}",
+    "noRoutes": "ルートが見つかりません。時刻を変えるか、YouBikeをオンにしてください。",
+    "later": "後の便",
+    "earlier": "前の便"
+  },
+  "leg": {
+    "WALK": "徒歩",
+    "BICYCLE": "YouBike",
+    "SUBWAY": "MRT",
+    "RAIL": "鉄道",
+    "BUS": "バス",
+    "COACH": "長距離バス",
+    "TRAM": "ライトレール",
+    "FERRY": "フェリー",
+    "GONDOLA": "ロープウェイ",
+    "AIRPLANE": "飛行機",
+    "OTHER": "公共交通",
+    "towards": "{{headsign}}行き",
+    "stayAt": "{{place}}に{{minutes}}分滞在",
+    "pickUpBike": "{{station}}で自転車を借りる",
+    "returnBike": "{{station}}で自転車を返す"
+  },
+  "realtime": {
+    "live": "リアルタイム",
+    "scheduled": "時刻表",
+    "arrivesIn": "あと{{minutes}}分で到着",
+    "arriving": "まもなく到着",
+    "lastBus": "最終バス"
+  },
+  "risk": {
+    "low": "空きは十分です",
+    "medium": "混雑している可能性があります",
+    "high": "空きがない可能性が高いです",
+    "few_bikes_at_pickup": "貸出ステーションの自転車が少なめです",
+    "no_bikes_at_pickup": "貸出ステーションに現在自転車がありません",
+    "few_docks_at_dropoff": "返却ステーションの空きが少なめです",
+    "no_docks_at_dropoff": "返却ステーションに現在空きがありません",
+    "long_lead_time": "到着までに状況が変わる可能性があります",
+    "no_realtime": "リアルタイムの空き情報がありません",
+    "backup": "予備ステーション：{{station}}"
+  },
+  "bike": {
+    "bikes": "貸出可",
+    "ebikes": "電動アシスト",
+    "docks": "返却可"
+  },
+  "tpass": {
+    "title": "TPASS",
+    "none": "定期券なし",
+    "covered": "TPASSの対象です",
+    "partial": "TPASSの一部対象です",
+    "not_covered": "TPASSの対象外です",
+    "unknown": "TPASSの対象の可能性があります"
+  },
+  "stop": {
+    "departures": "発車案内",
+    "noDepartures": "1時間以内に発車する便はありません"
+  },
+  "settings": {
+    "title": "設定",
+    "language": "言語",
+    "tpassPass": "TPASS定期券",
+    "about": "このアプリについて",
+    "dataSource": "交通データ：交通部 TDX。地図データ © OpenStreetMap contributors。"
+  },
+  "errors": {
+    "network": "TWCommuteに接続できません。通信環境をご確認ください。",
+    "generic": "エラーが発生しました。"
+  }
+}

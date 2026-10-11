@@ -1,0 +1,52 @@
+{
+  "server": {
+    "apiProcessingTimeout": "7s"
+  },
+  "routingDefaults": {
+    "numItineraries": 6,
+    "transferSlack": "2m",
+    "waitReluctance": 0.9,
+    "walk": {
+      "speed": 1.25,
+      "reluctance": 2.0
+    },
+    "bicycle": {
+      "speed": 4.5,
+      "rental": {
+        "pickupCost": 120,
+        "pickupTime": "1m",
+        "dropOffTime": "1m",
+        "dropOffCost": 60
+      }
+    },
+    "accessEgress": {
+      "maxDuration": "30m",
+      "maxDurationForMode": {
+        "BIKE_RENTAL": "25m"
+      }
+    }
+  },
+  "updaters": [
+    {
+      "type": "vehicle-rental",
+      "network": "youbike2",
+      "sourceType": "gbfs",
+      "frequency": "1m",
+      "url": "{{INGEST_URL}}/gbfs/youbike2/gbfs.json"
+    },
+    {
+      "type": "vehicle-rental",
+      "network": "youbike1",
+      "sourceType": "gbfs",
+      "frequency": "1m",
+      "url": "{{INGEST_URL}}/gbfs/youbike1/gbfs.json"
+    },
+    {
+      "type": "stop-time-updater",
+      "feedId": "{{TRA_FEED_ID}}",
+      "frequency": "30s",
+      "backwardsDelayPropagationType": "REQUIRED_NO_DATA",
+      "url": "{{INGEST_URL}}/rt/tra-trip-updates.pb"
+    }
+  ]
+}

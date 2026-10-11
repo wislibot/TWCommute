@@ -1,0 +1,7 @@
+{
+  "transitServiceStart": "-P3D",
+  "transitServiceEnd": "P60D",
+  "osmCacheDataInMem": true,
+  "osm": [{ "source": "osm/taiwan.osm.pbf" }],
+  "transitFeeds": []
+}
