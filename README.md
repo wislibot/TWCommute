@@ -54,4 +54,4 @@ MapLibre is a native module, so use a development build (`npx expo run:*` or `ea
 
 ## Data and attribution
 
-Transit data: Ministry of Transportation and Communications, [TDX](https://tdx.transportdata.tw/). Street data and map tiles: © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors ([OpenFreeMap](https://openfreemap.org/)). Routing: [OpenTripPlanner](https://www.opentripplanner.org/).
+Transit data source: **交通部運輸資料流通服務平臺** (Ministry of Transportation and Communications, [Transport Data eXchange](https://tdx.transportdata.tw/)). The TDX data license (資料授權利用條款 §5-2) requires this exact source name wherever the data is shown; the app displays it on results, itineraries, departure boards and in Settings. Street data and map tiles: © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors ([OpenFreeMap](https://openfreemap.org/)). Routing: [OpenTripPlanner](https://www.opentripplanner.org/).

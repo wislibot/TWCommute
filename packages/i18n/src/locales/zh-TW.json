@@ -1,5 +1,7 @@
 {
-  "app": { "name": "TWCommute" },
+  "app": {
+    "name": "TWCommute"
+  },
   "common": {
     "search": "搜尋",
     "from": "起點",
@@ -10,7 +12,8 @@
     "retry": "重試",
     "loading": "載入中…",
     "minutes": "{{count}} 分鐘",
-    "currentLocation": "目前位置"
+    "currentLocation": "目前位置",
+    "dataCredit": "資料來源：交通部運輸資料流通服務平臺"
   },
   "plan": {
     "title": "規劃行程",
@@ -92,7 +95,7 @@
     "language": "語言",
     "tpassPass": "我的 TPASS 月票",
     "about": "關於",
-    "dataSource": "交通資料：交通部 TDX 運輸資料流通服務。地圖資料 © OpenStreetMap 貢獻者。"
+    "dataSource": "交通資料來源：交通部運輸資料流通服務平臺（TDX）。地圖資料 © OpenStreetMap 貢獻者。"
   },
   "errors": {
     "network": "無法連線至 TWCommute，請檢查網路連線。",

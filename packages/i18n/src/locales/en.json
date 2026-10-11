@@ -1,5 +1,7 @@
 {
-  "app": { "name": "TWCommute" },
+  "app": {
+    "name": "TWCommute"
+  },
   "common": {
     "search": "Search",
     "from": "From",
@@ -10,7 +12,8 @@
     "retry": "Retry",
     "loading": "Loading…",
     "minutes": "{{count}} min",
-    "currentLocation": "Current location"
+    "currentLocation": "Current location",
+    "dataCredit": "Data: 交通部運輸資料流通服務平臺 (MOTC TDX)"
   },
   "plan": {
     "title": "Plan a trip",
@@ -92,7 +95,7 @@
     "language": "Language",
     "tpassPass": "My TPASS pass",
     "about": "About",
-    "dataSource": "Transit data: Ministry of Transportation and Communications TDX. Map data © OpenStreetMap contributors."
+    "dataSource": "Transit data source: 交通部運輸資料流通服務平臺 (Ministry of Transportation and Communications, Transport Data eXchange). Map data © OpenStreetMap contributors."
   },
   "errors": {
     "network": "Can't reach TWCommute. Check your connection.",

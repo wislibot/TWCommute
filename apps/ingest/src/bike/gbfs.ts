@@ -53,7 +53,7 @@ export function buildGbfsFeed(
           language: "zh-TW",
           name: GBFS_SYSTEMS[system].name,
           timezone: "Asia/Taipei",
-          operator: "YouBike Co., Ltd. (via MOTC TDX)",
+          operator: "YouBike Co., Ltd. (資料來源：交通部運輸資料流通服務平臺)",
         },
         nowSeconds,
       );

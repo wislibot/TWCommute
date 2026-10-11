@@ -1,5 +1,7 @@
 {
-  "app": { "name": "TWCommute" },
+  "app": {
+    "name": "TWCommute"
+  },
   "common": {
     "search": "검색",
     "from": "출발",
@@ -10,7 +12,8 @@
     "retry": "다시 시도",
     "loading": "불러오는 중…",
     "minutes": "{{count}}분",
-    "currentLocation": "현재 위치"
+    "currentLocation": "현재 위치",
+    "dataCredit": "데이터 출처: 交通部運輸資料流通服務平臺"
   },
   "plan": {
     "title": "경로 찾기",
@@ -92,7 +95,7 @@
     "language": "언어",
     "tpassPass": "내 TPASS 정기권",
     "about": "정보",
-    "dataSource": "교통 데이터: 교통부 TDX. 지도 데이터 © OpenStreetMap contributors."
+    "dataSource": "교통 데이터 출처: 交通部運輸資料流通服務平臺 (교통부 TDX). 지도 데이터 © OpenStreetMap contributors."
   },
   "errors": {
     "network": "TWCommute에 연결할 수 없어요. 네트워크를 확인해 주세요.",

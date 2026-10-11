@@ -3,6 +3,7 @@ import { useLocalSearchParams } from "expo-router";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { ScrollView, StyleSheet, View } from "react-native";
+import { DataCredit } from "@/components/data-credit";
 import { LegList } from "@/components/leg-list";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -46,6 +47,7 @@ export default function ItineraryScreen() {
       </View>
       <ScrollView contentContainerStyle={styles.legs}>
         <LegList itinerary={itinerary} />
+        <DataCredit />
       </ScrollView>
     </ThemedView>
   );

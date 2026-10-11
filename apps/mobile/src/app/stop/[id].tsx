@@ -2,6 +2,7 @@ import { Stack, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, FlatList, StyleSheet, View } from "react-native";
 import { ModeChip, RealtimeBadge } from "@/components/badges";
+import { DataCredit } from "@/components/data-credit";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useTheme } from "@/hooks/use-theme";
@@ -29,6 +30,7 @@ export default function StopScreen() {
         data={board.data?.departures ?? []}
         keyExtractor={(d, i) => `${d.routeId}-${d.scheduled}-${i}`}
         contentContainerStyle={styles.list}
+        ListFooterComponent={<DataCredit />}
         ListEmptyComponent={
           <ThemedText themeColor="textSecondary" style={styles.empty}>
             {board.isError ? t("errors.network") : t("stop.noDepartures")}

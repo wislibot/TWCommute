@@ -1,5 +1,7 @@
 {
-  "app": { "name": "TWCommute" },
+  "app": {
+    "name": "TWCommute"
+  },
   "common": {
     "search": "検索",
     "from": "出発",
@@ -10,7 +12,8 @@
     "retry": "再試行",
     "loading": "読み込み中…",
     "minutes": "{{count}}分",
-    "currentLocation": "現在地"
+    "currentLocation": "現在地",
+    "dataCredit": "データ提供：交通部運輸資料流通服務平臺"
   },
   "plan": {
     "title": "ルート検索",
@@ -92,7 +95,7 @@
     "language": "言語",
     "tpassPass": "TPASS定期券",
     "about": "このアプリについて",
-    "dataSource": "交通データ：交通部 TDX。地図データ © OpenStreetMap contributors。"
+    "dataSource": "交通データ提供：交通部運輸資料流通服務平臺（交通部 TDX）。地図データ © OpenStreetMap contributors。"
   },
   "errors": {
     "network": "TWCommuteに接続できません。通信環境をご確認ください。",

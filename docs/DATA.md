@@ -16,6 +16,15 @@ Nothing in this file has been run against live TDX data yet: it needs a TDX API 
 
 TDX GTFS-Realtime is documented but its delivery is "in progress" (TDX GTFS docs, 資料更新與上架), which is why live data comes from the native APIs above.
 
+## License (TDX 資料授權利用條款, 2023-10-26)
+
+- **No-review data (免審核提供資料)** may be used for any purpose, including commercial products, redistributed and sublicensed (§4-1). Access is paid per the TDX fee rules (收費要點); there is no royalty.
+- **Review-required data (需審核提供資料)** needs the source's approval first (§4-2). Phase 0 checks each dataset we use.
+- **Attribution is mandatory** (§5-2): show 「交通部運輸資料流通服務平臺」 (or the source agency) clearly. Without it, use counts as unlicensed. Implemented in `apps/mobile/src/components/data-credit.tsx` and the `settings.dataSource` string.
+- **Follow platform access rules** (§5-1), or access can be revoked.
+- **No warranty, and we indemnify MOTC** for losses caused by our intent or negligence (§7). Our own Terms of Use must disclaim accuracy to our users.
+- Trademarks are not licensed (§4-1): no YouBike / Taipei Metro / MOTC logos, and no implied endorsement.
+
 ## Phase 0 checklist
 
 Run with real credentials (`.env`), then record results here.
@@ -30,7 +39,8 @@ Run with real credentials (`.env`), then record results here.
    - OTP `vehicleRentalStation.stationId` carries the TDX `StationUID` (used for TPASS city lookup).
 5. **Live data quality per city:** ETA freshness (`SrcUpdateTime` lag), share of stops with predictions, ghost buses.
 6. **TDX plan and terms:** confirm the tier for ≈1 call/s (all cities: 23 bus feeds every 30s + 15 bike cities every 60s + TRA every 60s ≈ 2.7M calls/month). Reduce with `BUS_CITIES` / intervals if needed, and check the streaming ETA endpoints. Confirm commercial-use and attribution wording, and apply for the academic/public-interest discount if eligible.
-7. **TPASS data:** verify every pass in `packages/fares/src/tpass.ts` against official pages and set `verifiedAt`.
+7. **License class:** confirm every dataset we use is marked 免審核 in its TDX metadata (詮釋資料); email tdx@motc.gov.tw to confirm the attribution wording.
+8. **TPASS data:** verify every pass in `packages/fares/src/tpass.ts` against official pages and set `verifiedAt`.
 
 ## Results
 

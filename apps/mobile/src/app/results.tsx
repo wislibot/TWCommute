@@ -1,6 +1,7 @@
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, FlatList, StyleSheet } from "react-native";
+import { DataCredit } from "@/components/data-credit";
 import { PrimaryButton } from "@/components/form";
 import { ItineraryCard } from "@/components/itinerary-card";
 import { ThemedText } from "@/components/themed-text";
@@ -35,6 +36,7 @@ export default function ResultsScreen() {
         keyExtractor={(it) => it.id}
         contentContainerStyle={styles.list}
         ListEmptyComponent={<ThemedText style={styles.empty}>{t("results.noRoutes")}</ThemedText>}
+        ListFooterComponent={<DataCredit />}
         renderItem={({ item, index }) => (
           <ItineraryCard
             itinerary={item}
