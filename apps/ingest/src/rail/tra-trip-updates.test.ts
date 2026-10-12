@@ -1,7 +1,7 @@
 import { strToU8, zipSync } from "fflate";
 import GtfsRealtime from "gtfs-realtime-bindings";
 import { describe, expect, it } from "vitest";
-import { buildTraIndex, buildTraIndexFromZip } from "../gtfs/tra-index";
+import { buildTraIndex, buildTraIndexFromZip, readTraStopPatterns } from "../gtfs/tra-index";
 import { buildTraTripUpdates, taipeiServiceDate, tripsForNow } from "./tra-trip-updates";
 
 const files = {
@@ -9,7 +9,7 @@ const files = {
     "agency_id,agency_name,agency_url,agency_timezone\nTRA,臺鐵,https://example.test,Asia/Taipei\nTRTC,臺北捷運,https://example.test,Asia/Taipei\n",
   routes: "route_id,agency_id,route_short_name,route_type\nTRA-WEST,TRA,西部幹線,2\nBL,TRTC,板南線,1\n",
   trips:
-    "route_id,service_id,trip_id,trip_short_name\nTRA-WEST,WK,TRA-123-WK,123\nTRA-WEST,WE,TRA-123-WE,123\nBL,WK,BL-1,123\n",
+    "route_id,service_id,trip_id,trip_short_name\nTRA-WEST,WK,TRA-123-WK,123\nTRA-WEST,WE,TRA-123-WE,123\nTRA-WEST,WK,TRA-456-WK,456\nBL,WK,BL-1,123\n",
   stops:
     "stop_id,stop_code,stop_name,stop_lat,stop_lon\nTRA_1000,1000,臺北,25.04,121.51\nTRA_1020,,板橋,25.01,121.46\n",
 };
@@ -26,11 +26,18 @@ describe("buildTraIndex", () => {
     expect(idx.stopIdByStationId.get("1020")).toBe("TRA_1020");
   });
 
-  it("finds the TRA feed inside a bundle of nested zips", () => {
-    const inner = zipSync(Object.fromEntries(Object.entries(files).map(([k, v]) => [`${k}.txt`, strToU8(v)])));
+  it("finds the TRA feed inside a bundle of nested zips and reads its stop patterns", () => {
+    const inner = zipSync({
+      ...Object.fromEntries(Object.entries(files).map(([k, v]) => [`${k}.txt`, strToU8(v)])),
+      "stop_times.txt": strToU8(
+        "trip_id,stop_id,stop_sequence,departure_time\nTRA-123-WK,TRA_1000,1,08:00:00\nBL-1,X,1,08:00:00\n",
+      ),
+    });
     const other = zipSync({ "agency.txt": strToU8("agency_id,agency_name\nX,Bus\n") });
     const bundle = zipSync({ "tra.zip": inner, "bus.zip": other });
-    expect(buildTraIndexFromZip(bundle).tripIdsByTrainNo.get("123")).toHaveLength(2);
+    const idx = buildTraIndexFromZip(bundle);
+    expect(idx.tripIdsByTrainNo.get("123")).toHaveLength(2);
+    expect([...idx.stopsByTripId.keys()]).toEqual(["TRA-123-WK"]);
   });
 });
 
@@ -43,7 +50,7 @@ describe("buildTraTripUpdates", () => {
       [
         { TrainNo: "123", StationID: "1000", DelayTime: 4 },
         { TrainNo: "999", StationID: "1000", DelayTime: 2 },
-        { TrainNo: "123", StationID: "7777", DelayTime: 1 },
+        { TrainNo: "456", StationID: "7777", DelayTime: 1 },
       ],
       index,
       now,
@@ -117,5 +124,68 @@ describe("tripsForNow", () => {
   });
   it("returns nothing when the train does not run today or yesterday", () => {
     expect(tripsForNow(["T_20261020_080000"], Date.parse("2026-10-12T09:00:00+08:00"))).toEqual([]);
+  });
+});
+
+describe("delays at stations the train passes without stopping", () => {
+  // Express 1004 stops at 七堵 (0930) 10:27 and 臺北 (1000) 10:55; it passes 汐止 (0960) in between.
+  const files = {
+    agency: "agency_id,agency_name\nTRA,交通部臺灣鐵路管理局\n",
+    routes: "route_id,agency_id,route_type\nTRA_1004_0_1132,TRA,2\n",
+    trips: "route_id,service_id,trip_id\nTRA_1004_0_1132,S1,TRA_1004_0_1132_20261012_102700\n",
+    stops: "stop_id,stop_name\nTRA_0930,七堵\nTRA_0960,汐止\nTRA_1000,臺北\n",
+  };
+  const stopTimes = strToU8(
+    "trip_id,arrival_time,departure_time,stop_id,stop_sequence\n" +
+      "TRA_1004_0_1132_20261012_102700,10:27:00,10:27:00,TRA_0930,1\n" +
+      "TRA_1004_0_1132_20261012_102700,10:55:00,10:56:00,TRA_1000,2\n",
+  );
+  const index = {
+    ...buildTraIndex(files),
+    stopsByTripId: readTraStopPatterns(stopTimes, new Set(["TRA_1004_0_1132_20261012_102700"])),
+  };
+  const at = (hhmm: string) => Date.parse(`2026-10-12T${hhmm}:00+08:00`);
+  const decode = (feed: Uint8Array) =>
+    (
+      GtfsRealtime.transit_realtime.FeedMessage.toObject(GtfsRealtime.transit_realtime.FeedMessage.decode(feed)) as {
+        entity: Array<{ tripUpdate: { stopTimeUpdate: Array<{ stopId: string; stopSequence?: number }> } }>;
+      }
+    ).entity.map((e) => e.tripUpdate.stopTimeUpdate[0]);
+
+  it("reads stop patterns in stop_sequence order", () => {
+    expect(index.stopsByTripId.get("TRA_1004_0_1132_20261012_102700")).toEqual([
+      { stopId: "TRA_0930", stopSequence: 1, timeSecs: 10 * 3600 + 27 * 60 },
+      { stopId: "TRA_1000", stopSequence: 2, timeSecs: 10 * 3600 + 56 * 60 },
+    ]);
+  });
+
+  it("puts the delay on the next stop the train has not reached", () => {
+    const r = buildTraTripUpdates([{ TrainNo: "1004", StationID: "0960", DelayTime: 5 }], index, at("10:40"));
+    expect(r).toMatchObject({ matched: 1, offPattern: 1, unmatchedStations: 0 });
+    expect(decode(r.feed)).toEqual([expect.objectContaining({ stopId: "TRA_1000", stopSequence: 2 })]);
+  });
+
+  it("uses the reported station when the train stops there", () => {
+    const r = buildTraTripUpdates([{ TrainNo: "1004", StationID: "0930", DelayTime: 5 }], index, at("10:33"));
+    expect(r).toMatchObject({ matched: 1, offPattern: 0 });
+    expect(decode(r.feed)).toEqual([expect.objectContaining({ stopId: "TRA_0930", stopSequence: 1 })]);
+  });
+
+  it("counts a train past its last stop as unmatched", () => {
+    const r = buildTraTripUpdates([{ TrainNo: "1004", StationID: "0960", DelayTime: 0 }], index, at("11:30"));
+    expect(r).toMatchObject({ matched: 0, unmatchedStations: 1 });
+  });
+
+  it("keeps only the latest report per train", () => {
+    const r = buildTraTripUpdates(
+      [
+        { TrainNo: "1004", StationID: "0930", DelayTime: 1, SrcUpdateTime: "2026-10-12T10:30:00+08:00" },
+        { TrainNo: " 1004", StationID: "0930", DelayTime: 7, SrcUpdateTime: "2026-10-12T10:32:00+08:00" },
+      ],
+      index,
+      at("10:33"),
+    );
+    expect(r.matched).toBe(1);
+    expect(decode(r.feed)).toHaveLength(1);
   });
 });

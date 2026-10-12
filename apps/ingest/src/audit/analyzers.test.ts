@@ -253,6 +253,7 @@ describe("analyzeEtaQuality", () => {
 });
 
 describe("analyzeTra", () => {
+  const now = Date.parse("2026-10-11T09:30:00+08:00");
   const files = {
     agency: "agency_id,agency_name\nTRA,臺鐵\n",
     routes: "route_id,agency_id,route_type\nW,TRA,2\n",
@@ -282,7 +283,7 @@ describe("analyzeTra", () => {
   ];
 
   it("dedupes by train (latest wins) and classifies like the production mapper", () => {
-    const r = analyzeTra(index, delays, stations);
+    const r = analyzeTra(index, delays, stations, now);
     expect(r).toMatchObject({
       traFeedFound: true,
       delays: 3,
@@ -295,19 +296,20 @@ describe("analyzeTra", () => {
     expect(r.unmatchedSamples).toEqual({ trains: ["777"], stations: ["9999"] });
   });
 
-  it("agrees with buildTraTripUpdates on deduplicated input", () => {
-    const deduped = [delays[0], delays[2], delays[3]] as typeof delays;
-    const prod = buildTraTripUpdates(deduped, index);
-    const r = analyzeTra(index, deduped, stations);
-    expect([r.matched, r.unmatchedTrains, r.unmatchedStations]).toEqual([
+  it("agrees with buildTraTripUpdates", () => {
+    const deduped = delays;
+    const prod = buildTraTripUpdates(deduped, index, now);
+    const r = analyzeTra(index, deduped, stations, now);
+    expect([r.matched, r.offPattern, r.unmatchedTrains, r.unmatchedStations]).toEqual([
       prod.matched,
+      prod.offPattern,
       prod.unmatchedTrains,
       prod.unmatchedStations,
     ]);
   });
 
   it("reports a missing TRA feed", () => {
-    expect(analyzeTra(null, delays, stations)).toMatchObject({
+    expect(analyzeTra(null, delays, stations, now)).toMatchObject({
       traFeedFound: false,
       matched: 0,
       unmatchedTrains: 3,

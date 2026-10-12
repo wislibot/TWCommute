@@ -1,6 +1,7 @@
 import { strToU8 } from "fflate";
 import { describe, expect, it } from "vitest";
-import { editRecords, repairFeed, repairStopTimes } from "./repair";
+import { editRecords } from "./csv-bytes";
+import { repairFeed, repairStopTimes } from "./repair";
 
 const feed = (files: Record<string, string>) => new Map(Object.entries(files));
 
@@ -37,8 +38,8 @@ describe("repairFeed", () => {
   it("drops pathways to missing stops and trips of missing routes (with their frequencies)", () => {
     const { changed, removedTrips, repairs } = repairFeed(
       feed({
-        "stops.txt": "stop_id\nS1\nS2\n",
-        "pathways.txt": "pathway_id,from_stop_id,to_stop_id\nW1,S1,S2\nW2,S1,541831009\nW3,541831009,S2\n",
+        "stops.txt": "stop_id,location_type,parent_station\nST,1,\nS1,3,ST\nS2,2,ST\n",
+        "pathways.txt": "pathway_id,from_stop_id,to_stop_id\nW1,S1,S2\nW2,S1,541831009\nW3,541831009,S2\n6670,ST,S1\n",
         "routes.txt": "route_id\nR1\n",
         "trips.txt": "route_id,service_id,trip_id\nR1,D,T1\nSHIP_NewTaipei_HalohaR101_0,D,T2\n",
         "frequencies.txt":
@@ -49,10 +50,11 @@ describe("repairFeed", () => {
     expect(changed.get("trips.txt")).toBe("route_id,service_id,trip_id\nR1,D,T1\n");
     expect(changed.get("frequencies.txt")).toBe("trip_id,start_time,end_time,headway_secs\nT1,06:00:00,09:00:00,600\n");
     expect([...removedTrips]).toEqual(["T2"]);
-    expect(repairs.map((r) => [r.file, r.rows])).toEqual([
-      ["pathways.txt", 2],
-      ["trips.txt", 1],
-      ["frequencies.txt", 1],
+    expect(repairs.map((r) => [r.file, r.rows, r.what])).toEqual([
+      ["pathways.txt", 2, "from_stop_id/to_stop_id not found: removed"],
+      ["pathways.txt", 1, "station endpoint: removed"],
+      ["trips.txt", 1, "route_id not found: removed"],
+      ["frequencies.txt", 1, "trip removed: removed"],
     ]);
   });
 

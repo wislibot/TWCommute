@@ -132,7 +132,7 @@ async function main() {
   if (national) traIndex = (await step("build TRA index", () => buildTraIndexFromZip(national.data))) ?? null;
   const delays = await step("TRA live delays", () => getTraLiveTrainDelay(tdx));
   const stations = await step("TRA stations", () => getTraStations(tdx));
-  if (delays && stations) report.tra = analyzeTra(traIndex, delays, stations);
+  if (delays && stations) report.tra = analyzeTra(traIndex, delays, stations, Date.now());
 
   // YouBike: data quality for the GBFS adapter.
   for (const city of cities.filter((c) => (BIKE_CITIES as readonly string[]).includes(c))) {

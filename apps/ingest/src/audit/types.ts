@@ -92,8 +92,14 @@ export interface TraResult {
   traFeedFound: boolean;
   trainsIndexed: number;
   stationsIndexed: number;
+  /** TRA trips whose stop pattern was read from stop_times.txt. */
+  tripsWithStops: number;
   delays: number;
+  /** Delays placed on a stop of today's trip… */
   matched: number;
+  /** …of which via the next stop, because the train does not stop at the reported station. */
+  offPattern: number;
+  /** No trip of that train runs today (or last night). */
   unmatchedTrains: number;
   unmatchedStations: number;
   unmatchedSamples: { trains: string[]; stations: string[] };

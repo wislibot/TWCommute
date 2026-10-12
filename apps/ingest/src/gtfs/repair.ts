@@ -1,9 +1,11 @@
 import { parseRecord, splitRecords } from "./csv";
+import { editRecords, quote } from "./csv-bytes";
 
 /**
  * Repairs for GTFS problems that make OTP abort the whole graph build. All were found in the TDX
  * national feed (October 2026, see docs/DATA.md): repeated ids, stops on levels that levels.txt
- * lacks, trips of routes that routes.txt lacks, and pathways between stops that do not exist.
+ * lacks, trips of routes that routes.txt lacks, pathways between stops that do not exist or to a
+ * station, and HH:MM times.
  * Each repair is the smallest change that keeps the rest of the data: clear an optional
  * reference, or drop the rows that cannot be loaded.
  */
@@ -62,10 +64,6 @@ export class CsvTable {
   toText(): string {
     return `${[this.headerRaw, ...this.records].join("\n")}\n`;
   }
-}
-
-function quote(field: string): string {
-  return /[",\r\n]/.test(field) ? `"${field.replaceAll('"', '""')}"` : field;
 }
 
 /** Drop rows whose key was already seen (the first wins). */
@@ -132,6 +130,19 @@ function dropDangling(
   return removed;
 }
 
+/** Stops with location_type 1 (stations). */
+function stationIds(stops: CsvTable): Set<string> {
+  const id = stops.col("stop_id");
+  const type = stops.col("location_type");
+  const out = new Set<string>();
+  if (id < 0 || type < 0) return out;
+  for (const r of stops.records) {
+    const fields = parseRecord(r);
+    if ((fields[type] ?? "").trim() === "1" && fields[id]) out.add(fields[id] as string);
+  }
+  return out;
+}
+
 export interface RepairResult {
   /** New text of each changed file (by base name). */
   changed: Map<string, string>;
@@ -163,9 +174,23 @@ export function repairFeed(files: Map<string, string>): RepairResult {
   }
   const pathways = tables.get("pathways.txt");
   if (pathways && stops) {
-    const ids = stops.values("stop_id");
     const before = pathways.records.length;
-    dropDangling(pathways, "pathways.txt", ["from_stop_id", "to_stop_id"], ids, repairs);
+    dropDangling(pathways, "pathways.txt", ["from_stop_id", "to_stop_id"], stops.values("stop_id"), repairs);
+    // GTFS forbids pathways to a station (location_type 1); OTP cannot map one and aborts.
+    const stations = stationIds(stops);
+    const ends = ["from_stop_id", "to_stop_id"].map((c) => pathways.col(c));
+    const kept = pathways.records.filter((r) => {
+      const fields = parseRecord(r);
+      return ends.every((c) => c < 0 || !stations.has(fields[c] ?? ""));
+    });
+    if (kept.length < pathways.records.length) {
+      repairs.push({
+        file: "pathways.txt",
+        rows: pathways.records.length - kept.length,
+        what: "station endpoint: removed",
+      });
+      pathways.records = kept;
+    }
     mark("pathways.txt", pathways.records.length !== before);
   }
 
@@ -191,103 +216,6 @@ export function repairFeed(files: Map<string, string>): RepairResult {
     removedTrips,
     repairs,
   };
-}
-
-const NL = 0x0a;
-const CR = 0x0d;
-const QUOTE = 0x22;
-const COMMA = 0x2c;
-
-/** What to do with one record: keep it, drop it, or replace some of its fields (by column name). */
-export type RecordEdit = undefined | "drop" | Record<string, string>;
-
-/**
- * Edit the records of a large CSV file (stop_times.txt is ~370 MB) without decoding it as one
- * string. `decide` sees the values of `columns` for each record. Quoted fields (with commas or
- * newlines) are handled; edited records are re-quoted, others keep their bytes. Returns the input
- * itself when nothing changes.
- */
-export function editRecords(
-  bytes: Uint8Array,
-  columns: string[],
-  decide: (values: Record<string, string>) => RecordEdit,
-): { data: Uint8Array; dropped: number; edited: number } {
-  const decoder = new TextDecoder();
-  const recordEnd = (start: number): number => {
-    let inQuotes = false;
-    for (let i = start; i < bytes.length; i++) {
-      const b = bytes[i];
-      if (b === QUOTE) inQuotes = !inQuotes;
-      else if (b === NL && !inQuotes) return i;
-    }
-    return bytes.length;
-  };
-  const headerEnd = recordEnd(0);
-  const header = parseRecord(decoder.decode(bytes.subarray(0, headerEnd)).replace(/\r$/, "")).map((h) => h.trim());
-  const wanted = columns.map((c) => [c, header.indexOf(c)] as const).filter(([, i]) => i >= 0);
-  const unchanged = { data: bytes, dropped: 0, edited: 0 };
-  if (wanted.length === 0) return unchanged;
-  const lastCol = Math.max(...wanted.map(([, i]) => i));
-
-  // Field values of one record; ASCII-only unquoted records (nearly all) skip the decoder.
-  const valuesOf = (start: number, end: number): string[] => {
-    let plain = true;
-    for (let i = start; i < end && plain; i++) {
-      const b = bytes[i] as number;
-      if (b === QUOTE || b >= 0x80) plain = false;
-    }
-    if (!plain) return parseRecord(decoder.decode(bytes.subarray(start, end)));
-    const out: string[] = [];
-    let from = start;
-    for (let i = start; i <= end && out.length <= lastCol; i++) {
-      if (i === end || bytes[i] === COMMA) {
-        out.push(String.fromCharCode(...bytes.subarray(from, i)));
-        from = i + 1;
-      }
-    }
-    return out;
-  };
-
-  // Changes as [start, end, replacement]: an empty replacement drops the record.
-  const changes: Array<[number, number, Uint8Array]> = [];
-  let dropped = 0;
-  let edited = 0;
-  const encoder = new TextEncoder();
-  for (let start = headerEnd + 1; start < bytes.length; ) {
-    const nl = recordEnd(start);
-    const end = nl > start && bytes[nl - 1] === CR ? nl - 1 : nl;
-    if (end > start) {
-      const fields = valuesOf(start, end);
-      const edit = decide(Object.fromEntries(wanted.map(([c, i]) => [c, fields[i] ?? ""])));
-      if (edit === "drop") {
-        changes.push([start, Math.min(nl + 1, bytes.length), new Uint8Array(0)]);
-        dropped++;
-      } else if (edit) {
-        const all = parseRecord(decoder.decode(bytes.subarray(start, end)));
-        for (const [c, v] of Object.entries(edit)) {
-          const i = header.indexOf(c);
-          if (i >= 0) all[i] = v;
-        }
-        changes.push([start, end, encoder.encode(all.map(quote).join(","))]);
-        edited++;
-      }
-    }
-    start = nl + 1;
-  }
-  if (changes.length === 0) return unchanged;
-  const size = changes.reduce((n, [a, b, r]) => n - (b - a) + r.length, bytes.length);
-  const out = new Uint8Array(size);
-  let read = 0;
-  let write = 0;
-  for (const [a, b, r] of changes) {
-    out.set(bytes.subarray(read, a), write);
-    write += a - read;
-    out.set(r, write);
-    write += r.length;
-    read = b;
-  }
-  out.set(bytes.subarray(read), write);
-  return { data: out, dropped, edited };
 }
 
 /** GTFS times are H:MM:SS; some TDX rows (Matsu buses) have "15:15", which OTP cannot read. */

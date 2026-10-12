@@ -31,7 +31,11 @@ async function main() {
   if (national) {
     state.traIndex = buildTraIndexFromZip(national.data);
     log.info(
-      { trains: state.traIndex.tripIdsByTrainNo.size, stations: state.traIndex.stopIdByStationId.size },
+      {
+        trains: state.traIndex.tripIdsByTrainNo.size,
+        stations: state.traIndex.stopIdByStationId.size,
+        tripsWithStops: state.traIndex.stopsByTripId.size,
+      },
       "loaded TRA index from GTFS",
     );
   } else {

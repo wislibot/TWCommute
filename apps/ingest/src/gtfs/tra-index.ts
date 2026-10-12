@@ -1,5 +1,6 @@
 import { parseCsv } from "./csv";
-import { basename, readGtfsFiles } from "./zip";
+import { editRecords } from "./csv-bytes";
+import { basename, readGtfsBytes, readGtfsFiles } from "./zip";
 
 /**
  * Lookups needed to turn TDX TRA delays (train number + station id) into GTFS-RT updates
@@ -8,10 +9,59 @@ import { basename, readGtfsFiles } from "./zip";
 export interface TraIndex {
   tripIdsByTrainNo: Map<string, string[]>;
   stopIdByStationId: Map<string, string>;
+  /**
+   * Where each TRA trip stops, in order (from stop_times.txt; empty when it was not read). Trains
+   * repeat their timetable daily, so trips share pattern arrays.
+   */
+  stopsByTripId: Map<string, readonly TraStop[]>;
+}
+
+export interface TraStop {
+  stopId: string;
+  stopSequence: number;
+  /** Scheduled departure (or arrival) in seconds after the service day's midnight; may exceed 24 h. */
+  timeSecs: number | null;
 }
 
 export function emptyTraIndex(): TraIndex {
-  return { tripIdsByTrainNo: new Map(), stopIdByStationId: new Map() };
+  return { tripIdsByTrainNo: new Map(), stopIdByStationId: new Map(), stopsByTripId: new Map() };
+}
+
+/** "25:10:30" → 90630; null when blank or malformed. */
+export function gtfsTimeSecs(t: string | undefined): number | null {
+  const m = /^\s*(\d+):(\d{2})(?::(\d{2}))?\s*$/.exec(t ?? "");
+  return m ? Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3] ?? 0) : null;
+}
+
+/**
+ * Read the stop patterns of `tripIds` from stop_times.txt bytes (never decoded as one string: the
+ * national file is ~370 MB). Identical patterns are stored once.
+ */
+export function readTraStopPatterns(stopTimes: Uint8Array, tripIds: Set<string>): Map<string, readonly TraStop[]> {
+  const rows = new Map<string, TraStop[]>();
+  editRecords(stopTimes, ["trip_id", "stop_id", "stop_sequence", "arrival_time", "departure_time"], (v) => {
+    const tripId = v.trip_id ?? "";
+    if (!tripIds.has(tripId) || !v.stop_id) return undefined;
+    const stop = {
+      stopId: v.stop_id,
+      stopSequence: Number(v.stop_sequence),
+      timeSecs: gtfsTimeSecs(v.departure_time) ?? gtfsTimeSecs(v.arrival_time),
+    };
+    const list = rows.get(tripId);
+    if (list) list.push(stop);
+    else rows.set(tripId, [stop]);
+    return undefined;
+  });
+  const shared = new Map<string, readonly TraStop[]>();
+  const out = new Map<string, readonly TraStop[]>();
+  for (const [tripId, list] of rows) {
+    list.sort((a, b) => a.stopSequence - b.stopSequence);
+    const key = list.map((x) => `${x.stopId}@${x.stopSequence}@${x.timeSecs}`).join("|");
+    const pattern = shared.get(key) ?? list;
+    shared.set(key, pattern);
+    out.set(tripId, pattern);
+  }
+  return out;
 }
 
 /**
@@ -69,7 +119,10 @@ function trainNoFromId(id: string | undefined): string {
   return /^TRA_([0-9A-Za-z]+)_/.exec(id ?? "")?.[1] ?? "";
 }
 
-/** Build the index from a TDX GTFS zip, choosing the inner feed that contains TRA trips. */
+/**
+ * Build the index from a TDX GTFS zip, choosing the inner feed that contains TRA trips, and read
+ * that feed's TRA stop patterns from stop_times.txt.
+ */
 export function buildTraIndexFromZip(zip: Uint8Array): TraIndex {
   const files = readGtfsFiles(zip, ["agency.txt", "routes.txt", "trips.txt", "stops.txt"]);
   const feeds = new Map<string, Record<string, string>>();
@@ -80,9 +133,18 @@ export function buildTraIndexFromZip(zip: Uint8Array): TraIndex {
     feeds.set(dir, feed);
   }
   let best = emptyTraIndex();
-  for (const feed of feeds.values()) {
+  let bestDir = "";
+  for (const [dir, feed] of feeds) {
     const idx = buildTraIndex(feed);
-    if (idx.tripIdsByTrainNo.size > best.tripIdsByTrainNo.size) best = idx;
+    if (idx.tripIdsByTrainNo.size > best.tripIdsByTrainNo.size) {
+      best = idx;
+      bestDir = dir;
+    }
+  }
+  if (best.tripIdsByTrainNo.size === 0) return best;
+  const stopTimes = readGtfsBytes(zip, ["stop_times.txt"]).get(`${bestDir}stop_times.txt`);
+  if (stopTimes) {
+    best.stopsByTripId = readTraStopPatterns(stopTimes, new Set([...best.tripIdsByTrainNo.values()].flat()));
   }
   return best;
 }

@@ -98,6 +98,7 @@ export function buildJobs(
           log.info(
             {
               matched: result.matched,
+              viaNextStop: result.offPattern,
               unmatchedTrains: result.unmatchedTrains,
               unmatchedStations: result.unmatchedStations,
             },
