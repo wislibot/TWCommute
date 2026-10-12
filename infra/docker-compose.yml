@@ -18,8 +18,8 @@ services:
       - ../data:/data
     ports:
       - "8081:8081"
-    # Healthy once every YouBike city has loaded: OTP reads the docks when it starts and does not
-    # retry, so it waits for this (see otp below).
+    # Healthy once ingest lists its feeds and every YouBike feed (docks and availability) has loaded:
+    # OTP reads the docks when it starts and does not retry, so it waits for this (see otp below).
     healthcheck:
       test:
         - CMD
@@ -27,7 +27,7 @@ services:
         - -e
         - >-
           fetch('http://localhost:8081/health').then((r) => r.json())
-          .then((b) => process.exit(b.feeds.every((f) => !f.feed.startsWith('bike-availability') || f.lastSuccessAt) ? 0 : 1))
+          .then((b) => process.exit(b.feeds.length > 0 && b.feeds.every((f) => !f.feed.startsWith('bike-') || f.lastSuccessAt) ? 0 : 1))
           .catch(() => process.exit(1))
       interval: 10s
       timeout: 5s
