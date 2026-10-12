@@ -1,6 +1,6 @@
 import { strToU8, unzipSync, zipSync } from "fflate";
 import { parseCsv } from "./csv";
-import { REPAIR_INPUT_FILES, type Repair, repairFeed, repairStopTimes } from "./repair";
+import { dropStops, REPAIR_INPUT_FILES, type Repair, type RepairOptions, repairFeed, repairStopTimes } from "./repair";
 import { basename } from "./zip";
 
 export interface OtpFeed {
@@ -113,24 +113,34 @@ export interface CleanFeedResult {
  * would abort the graph build (`repairFeed`, `repairStopTimes`). Returns the input unchanged when
  * there is nothing to fix.
  */
-export function cleanFeed(data: Uint8Array, skip: string[] = OTP_SKIPPED_FILES): CleanFeedResult {
+export function cleanFeed(data: Uint8Array, options: RepairOptions & { skip?: string[] } = {}): CleanFeedResult {
+  const skip = options.skip ?? OTP_SKIPPED_FILES;
   const dropped = listZip(data).filter((n) => skip.includes(basename(n).toLowerCase()));
   const isInput = (name: string) => REPAIR_INPUT_FILES.includes(basename(name).toLowerCase());
   const small = unzipSync(data, { filter: (f) => !f.name.endsWith("/") && isInput(f.name) });
   const decoder = new TextDecoder();
   const pathOf = new Map(Object.keys(small).map((path) => [basename(path).toLowerCase(), path]));
-  const { changed, removedTrips, repairs } = repairFeed(
-    new Map(Object.entries(small).map(([path, bytes]) => [basename(path).toLowerCase(), decoder.decode(bytes)])),
+  const texts = new Map(
+    Object.entries(small).map(([path, bytes]) => [basename(path).toLowerCase(), decoder.decode(bytes)]),
   );
+  const { changed, removedTrips, repairs } = repairFeed(texts, options);
+  for (const [file, text] of changed) texts.set(file, text);
+
   const fixed: Record<string, Uint8Array> = {};
-  for (const [file, text] of changed) fixed[pathOf.get(file) as string] = strToU8(text);
   const stopTimesPath = listZip(data).find((n) => basename(n).toLowerCase() === "stop_times.txt");
   if (stopTimesPath) {
     const raw = unzipSync(data, { filter: (f) => f.name === stopTimesPath })[stopTimesPath] as Uint8Array;
     const st = repairStopTimes(raw, removedTrips);
     if (st.data !== raw) fixed[stopTimesPath] = st.data;
     repairs.push(...st.repairs);
+    const orphans = dropStops(texts, st.orphanStops);
+    for (const [file, text] of orphans.changed) {
+      texts.set(file, text);
+      changed.set(file, text);
+    }
+    repairs.push(...orphans.repairs);
   }
+  for (const [file, text] of changed) fixed[pathOf.get(file) as string] = strToU8(text);
   if (dropped.length === 0 && Object.keys(fixed).length === 0) return { data, dropped, repairs };
 
   const kept = unzipSync(data, {

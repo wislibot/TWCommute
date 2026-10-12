@@ -19,7 +19,6 @@ export interface OtpPlace {
   name: string | null;
   lat: number;
   lon: number;
-  viaLocationType: "PASS_THROUGH" | "VISIT" | null;
   stop: { gtfsId: string; code: string | null } | null;
   vehicleRentalStation: OtpRentalStation | null;
 }

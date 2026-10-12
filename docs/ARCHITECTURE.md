@@ -28,13 +28,13 @@
 
 **Only the server talks to TDX.** The app calls our API; the ingest service polls TDX on fixed intervals. TDX usage (≈1 call/s with all cities enabled; logged at startup) is the same for 10 users or 100,000.
 
-**Routing in OpenTripPlanner, not custom code.** OTP 2.10's RAPTOR router handles multimodal routing, bike rental (via GBFS) and stops along the way (`via.visit.minimumWaitTime`). Our API only adds what OTP can't know.
+**Routing in OpenTripPlanner, not custom code.** OTP 2.10's RAPTOR router handles multimodal routing and bike rental (via GBFS). Our API only adds what OTP can't know, and joins trips with stops along the way (below).
 
 **Live data without GTFS-RT for buses.** TDX's GTFS-Realtime feed isn't released yet, so:
 - *Rail (TRA):* ingest converts `LiveTrainDelay` (train number + last station + minutes late) into GTFS-RT TripUpdates. OTP propagates the delay and re-routes on it.
 - *Buses:* OTP routes on timetables. For bus legs leaving within 45 min, the API attaches TDX's live "next bus at this stop" ETA, and the app shows "Live: arrives in 6 min" next to the scheduled time. When TDX publishes GTFS-RT, ingest can relay it to OTP instead.
 
-**Stays at stops along the way.** OTP enforces `minimumWaitTime` at a via but times the walk away from it as early as possible, so the stay would show up as waiting at the next bus stop. The API moves those street legs to just before the next departure (2-minute buffer), so the app shows the time at the place the user chose. Verified against OTP 2.10 by `infra/smoke`.
+**Stays at stops along the way.** OTP 2.10 can plan a trip with stops in one via search, but on the full-Taiwan graph that takes 18–24 s against 2–3 s for a plain search (Phase 0, `docs/DATA.md`). So the API plans one plain search per segment (`apps/api/src/plan/chain.ts`): the first segment from the requested time, each later segment once from the earliest moment any option can leave the stop (arrival + stay). Each option continues with the later option that arrives first among those leaving after its stay, so every stay is at least what was asked, and spare time falls at the stop rather than at the next bus stop. One via costs two OTP searches. Arrive-by trips are chained backwards. Verified against OTP 2.10 by `infra/smoke`.
 
 **Honest labels.** Every leg and departure is `live` or `scheduled`; dock availability is `null` when no live data exists; TPASS coverage is `unknown` when a leg can't be placed in a city.
 

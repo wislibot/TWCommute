@@ -7,7 +7,6 @@ const PLACE_FIELDS = `
   name
   lat
   lon
-  viaLocationType
   stop { gtfsId code }
   vehicleRentalStation {
     stationId

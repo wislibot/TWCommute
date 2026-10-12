@@ -33,7 +33,11 @@ async function main() {
   await rm(join(otpDir, "gtfs"), { recursive: true, force: true });
   await mkdir(join(otpDir, "gtfs"), { recursive: true });
   for (const f of feeds) {
-    const { data, dropped, repairs } = cleanFeed(f.data);
+    // Taipei Metro's own feed has more trips, line names and colours than the copy in the national
+    // feed; keeping both plans every metro trip twice (Phase 0, docs/DATA.md).
+    const hasTrtcFeed = feeds.some((g) => g.feedId === "trtc");
+    const excludeAgencies = hasTrtcFeed && f.feedId !== "trtc" ? ["TRTC"] : [];
+    const { data, dropped, repairs } = cleanFeed(f.data, { excludeAgencies });
     f.data = data;
     if (dropped.length) console.log(`  ${f.feedId}: dropped ${dropped.join(", ")} (not used by OTP)`);
     for (const r of repairs) console.log(`  ${f.feedId}: ${r.file}: ${r.rows} rows with ${r.what}`);

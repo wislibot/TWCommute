@@ -152,7 +152,17 @@ export interface RepairResult {
 }
 
 /** Repair the small GTFS files (base name → text). Files that are missing are left alone. */
-export function repairFeed(files: Map<string, string>): RepairResult {
+export interface RepairOptions {
+  /**
+   * Agencies to leave out because another feed carries them better: the TDX national feed has a
+   * copy of Taipei Metro (`TRTC`) next to Taipei Metro's own feed, and with both every metro trip
+   * is planned twice. Their routes and trips are removed here, their stop times and the stops only
+   * they used by `repairStopTimes` / `dropStops`.
+   */
+  excludeAgencies?: readonly string[];
+}
+
+export function repairFeed(files: Map<string, string>, options: RepairOptions = {}): RepairResult {
   const repairs: Repair[] = [];
   const tables = new Map<string, CsvTable>();
   const changed = new Set<string>();
@@ -160,6 +170,8 @@ export function repairFeed(files: Map<string, string>): RepairResult {
   const mark = (file: string, did: boolean) => {
     if (did) changed.add(file);
   };
+  const excludedTrips = excludeAgencies(tables, options.excludeAgencies ?? [], repairs);
+  for (const file of excludedTrips.changed) changed.add(file);
 
   for (const [file, key] of Object.entries(KEYED_FILES)) {
     const t = tables.get(file);
@@ -207,12 +219,13 @@ export function repairFeed(files: Map<string, string>): RepairResult {
     mark("pathways.txt", pathways.records.length !== before);
   }
 
-  let removedTrips = new Set<string>();
+  const removedTrips = new Set(excludedTrips.trips);
   const trips = tables.get("trips.txt");
   const routes = tables.get("routes.txt");
   if (trips && routes) {
-    removedTrips = dropDangling(trips, "trips.txt", ["route_id"], routes.values("route_id"), repairs, "trip_id");
-    mark("trips.txt", removedTrips.size > 0);
+    const dangling = dropDangling(trips, "trips.txt", ["route_id"], routes.values("route_id"), repairs, "trip_id");
+    for (const t of dangling) removedTrips.add(t);
+    mark("trips.txt", dangling.size > 0);
   }
   const frequencies = tables.get("frequencies.txt");
   if (frequencies && removedTrips.size > 0) {
@@ -231,6 +244,89 @@ export function repairFeed(files: Map<string, string>): RepairResult {
     removedTrips,
     repairs,
   };
+}
+
+/** Remove `agencies` with their routes and trips; returns the removed trip ids and changed files. */
+function excludeAgencies(
+  tables: Map<string, CsvTable>,
+  agencies: readonly string[],
+  repairs: Repair[],
+): { trips: Set<string>; changed: string[] } {
+  const trips = new Set<string>();
+  if (agencies.length === 0) return { trips, changed: [] };
+  const excluded = new Set(agencies);
+  const changed: string[] = [];
+  const filter = (file: string, keep: (fields: string[]) => boolean, what: string) => {
+    const t = tables.get(file);
+    if (!t) return;
+    const before = t.records.length;
+    t.records = t.records.filter((r) => keep(parseRecord(r)));
+    if (t.records.length < before) {
+      repairs.push({ file, rows: before - t.records.length, what });
+      changed.push(file);
+    }
+  };
+  const label = `agency ${agencies.join("/")} excluded (another feed carries it): removed`;
+  const agencyCol = tables.get("agency.txt")?.col("agency_id") ?? -1;
+  filter("agency.txt", (f) => agencyCol < 0 || !excluded.has(f[agencyCol] ?? ""), label);
+  const routes = tables.get("routes.txt");
+  const routeAgency = routes?.col("agency_id") ?? -1;
+  const routeId = routes?.col("route_id") ?? -1;
+  const removedRoutes = new Set<string>();
+  filter(
+    "routes.txt",
+    (f) => {
+      if (routeAgency < 0 || !excluded.has(f[routeAgency] ?? "")) return true;
+      removedRoutes.add(f[routeId] ?? "");
+      return false;
+    },
+    label,
+  );
+  const tripsTable = tables.get("trips.txt");
+  const tripRoute = tripsTable?.col("route_id") ?? -1;
+  const tripId = tripsTable?.col("trip_id") ?? -1;
+  filter(
+    "trips.txt",
+    (f) => {
+      if (tripRoute < 0 || !removedRoutes.has(f[tripRoute] ?? "")) return true;
+      trips.add(f[tripId] ?? "");
+      return false;
+    },
+    label,
+  );
+  return { trips, changed };
+}
+
+/**
+ * Remove stops (and pathways touching them) after their last trip was removed, so a dropped
+ * agency's stations do not linger in search and nearby results. Returns the new texts.
+ */
+export function dropStops(
+  files: Map<string, string>,
+  stopIds: ReadonlySet<string>,
+): { changed: Map<string, string>; repairs: Repair[] } {
+  const repairs: Repair[] = [];
+  const changed = new Map<string, string>();
+  if (stopIds.size === 0) return { changed, repairs };
+  for (const [file, columns] of [
+    ["stops.txt", ["stop_id"]],
+    ["pathways.txt", ["from_stop_id", "to_stop_id"]],
+  ] as const) {
+    const text = files.get(file);
+    if (text === undefined) continue;
+    const t = new CsvTable(text);
+    const cols = columns.map((c) => t.col(c)).filter((c) => c >= 0);
+    const before = t.records.length;
+    t.records = t.records.filter((r) => {
+      const f = parseRecord(r);
+      return cols.every((c) => !stopIds.has(f[c] ?? ""));
+    });
+    if (t.records.length < before) {
+      repairs.push({ file, rows: before - t.records.length, what: "stop no longer served by any trip: removed" });
+      changed.set(file, t.toText());
+    }
+  }
+  return { changed, repairs };
 }
 
 /**
@@ -306,10 +402,21 @@ const SHORT_TIME = /^\d{1,2}:\d{2}$/;
  * stop_times.txt repairs: remove rows of trips that `repairFeed` dropped and complete HH:MM
  * times with ":00".
  */
-export function repairStopTimes(bytes: Uint8Array, removedTrips: Set<string>): { data: Uint8Array; repairs: Repair[] } {
+export function repairStopTimes(
+  bytes: Uint8Array,
+  removedTrips: Set<string>,
+): { data: Uint8Array; repairs: Repair[]; orphanStops: Set<string> } {
   let times = 0;
-  const { data, dropped } = editRecords(bytes, ["trip_id", "arrival_time", "departure_time"], (v) => {
-    if (removedTrips.has(v.trip_id ?? "")) return "drop";
+  // Stops of removed trips, and stops still served: the difference has lost all its service.
+  const removedStops = new Set<string>();
+  const servedStops = new Set<string>();
+  const { data, dropped } = editRecords(bytes, ["trip_id", "stop_id", "arrival_time", "departure_time"], (v) => {
+    const stop = v.stop_id ?? "";
+    if (removedTrips.has(v.trip_id ?? "")) {
+      if (removedTrips.size > 0) removedStops.add(stop);
+      return "drop";
+    }
+    if (removedTrips.size > 0) servedStops.add(stop);
     const fix: Record<string, string> = {};
     for (const c of ["arrival_time", "departure_time"]) {
       const t = (v[c] ?? "").trim();
@@ -322,5 +429,6 @@ export function repairStopTimes(bytes: Uint8Array, removedTrips: Set<string>): {
   const repairs: Repair[] = [];
   if (dropped) repairs.push({ file: "stop_times.txt", rows: dropped, what: "trip removed: removed" });
   if (times) repairs.push({ file: "stop_times.txt", rows: times, what: "HH:MM time: completed to HH:MM:00" });
-  return { data, repairs };
+  const orphanStops = new Set([...removedStops].filter((s) => s && !servedStops.has(s)));
+  return { data, repairs, orphanStops };
 }

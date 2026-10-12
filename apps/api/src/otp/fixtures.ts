@@ -8,7 +8,6 @@ const place = (name: string, lat: number, lon: number, extra: Partial<OtpPlace> 
   name,
   lat,
   lon,
-  viaLocationType: null,
   stop: null,
   vehicleRentalStation: null,
   ...extra,
@@ -83,13 +82,13 @@ export const itineraryWithVia: OtpItinerary = {
     leg({
       mode: "WALK",
       from: place("雙連", 25.057, 121.52),
-      to: place("Dihua St", 25.0558, 121.5099, { viaLocationType: "VISIT" }),
+      to: place("Dihua St", 25.0558, 121.5099),
       start: t("2026-10-11T09:22:00+08:00"),
       end: t("2026-10-11T09:35:00+08:00"),
     }),
     leg({
       mode: "WALK",
-      from: place("Dihua St", 25.0558, 121.5099, { viaLocationType: "VISIT" }),
+      from: place("Dihua St", 25.0558, 121.5099),
       to: place("迪化街口", 25.0553, 121.51, { stop: { gtfsId: "tw:TPE10001", code: null } }),
       start: t("2026-10-11T11:05:00+08:00"),
       end: t("2026-10-11T11:08:00+08:00"),

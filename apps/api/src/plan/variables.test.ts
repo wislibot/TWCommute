@@ -1,11 +1,11 @@
 import { PlanRequest } from "@twc/contracts";
 import { describe, expect, it } from "vitest";
-import { buildPlanVariables, minutesToDuration, toTaipeiIso } from "./variables";
+import { buildPlanVariables, searchVariables, toTaipeiIso } from "./variables";
 
 describe("buildPlanVariables", () => {
   const now = new Date("2026-10-11T01:00:00Z");
 
-  it("maps vias to visit locations with minimum wait time", () => {
+  it("searches the whole trip from now, ignoring stops (planned per segment)", () => {
     const vars = buildPlanVariables(
       PlanRequest.parse({
         from: { lat: 25.0478, lon: 121.517 },
@@ -14,12 +14,27 @@ describe("buildPlanVariables", () => {
       }),
       now,
     );
-    expect(vars.via).toEqual([
-      {
-        visit: { label: "Dihua St", minimumWaitTime: "PT90M", coordinate: { latitude: 25.0558, longitude: 121.5099 } },
-      },
-    ]);
+    expect(vars.via).toBeUndefined();
     expect(vars.dateTime).toEqual({ earliestDeparture: "2026-10-11T09:00:00+08:00" });
+    expect(vars.destination).toEqual({ location: { coordinate: { latitude: 25.1677, longitude: 121.4456 } } });
+  });
+
+  it("builds one segment's search with its own endpoints, time and size", () => {
+    const req = PlanRequest.parse({ from: { lat: 25, lon: 121.5 }, to: { lat: 25.1, lon: 121.5 }, locale: "zh-TW" });
+    const vars = searchVariables(req, {
+      from: { lat: 25.0558, lon: 121.5099, label: "Dihua St" },
+      to: { lat: 25.1, lon: 121.5, stopId: "tw:TPE10002" },
+      time: "2026-10-11T11:05:00+08:00",
+      arriveBy: true,
+      first: 10,
+    });
+    expect(vars).toMatchObject({
+      origin: { label: "Dihua St", location: { coordinate: { latitude: 25.0558, longitude: 121.5099 } } },
+      destination: { location: { stopLocation: { stopLocationId: "tw:TPE10002" } } },
+      dateTime: { latestArrival: "2026-10-11T11:05:00+08:00" },
+      first: 10,
+      locale: "zh_TW",
+    });
   });
 
   it("uses rental modes only when bike share is on", () => {
@@ -45,9 +60,7 @@ describe("buildPlanVariables", () => {
 });
 
 describe("helpers", () => {
-  it("formats durations and Taipei time", () => {
-    expect(minutesToDuration(0)).toBe("PT0S");
-    expect(minutesToDuration(45)).toBe("PT45M");
+  it("formats Taipei time", () => {
     expect(toTaipeiIso(new Date("2026-10-11T16:30:00Z"))).toBe("2026-10-12T00:30:00+08:00");
   });
 });

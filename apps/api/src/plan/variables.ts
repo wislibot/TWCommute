@@ -1,10 +1,5 @@
 import type { PlaceInput, PlanRequest } from "@twc/contracts";
 
-/** OTP Duration scalar (ISO-8601), e.g. 90 → "PT90M". */
-export function minutesToDuration(minutes: number): string {
-  return minutes <= 0 ? "PT0S" : `PT${Math.round(minutes)}M`;
-}
-
 function location(place: PlaceInput) {
   return {
     ...(place.label ? { label: place.label } : {}),
@@ -14,23 +9,24 @@ function location(place: PlaceInput) {
   };
 }
 
-/** Map our PlanRequest onto OTP `planConnection` variables. */
-export function buildPlanVariables(req: PlanRequest, now: Date = new Date()): Record<string, unknown> {
-  const time = req.time ?? toTaipeiIso(now);
+/** One OTP search: the request's options with its own endpoints and time. */
+export interface SearchInput {
+  from: PlaceInput;
+  to: PlaceInput;
+  /** ISO-8601 with offset. */
+  time: string;
+  arriveBy: boolean;
+  first: number;
+  cursor?: string;
+}
+
+/** Map a search onto OTP `planConnection` variables, with the request's modes and locale. */
+export function searchVariables(req: PlanRequest, search: SearchInput): Record<string, unknown> {
   const streetModes = req.bikeShare ? ["WALK", "BICYCLE_RENTAL"] : ["WALK"];
   return {
-    origin: location(req.from),
-    destination: location(req.to),
-    via: req.vias.map((v) => ({
-      visit: {
-        ...(v.place.label ? { label: v.place.label } : {}),
-        minimumWaitTime: minutesToDuration(v.dwellMinutes),
-        ...(v.place.stopId
-          ? { stopLocationIds: [v.place.stopId] }
-          : { coordinate: { latitude: v.place.lat, longitude: v.place.lon } }),
-      },
-    })),
-    dateTime: req.arriveBy ? { latestArrival: time } : { earliestDeparture: time },
+    origin: location(search.from),
+    destination: location(search.to),
+    dateTime: search.arriveBy ? { latestArrival: search.time } : { earliestDeparture: search.time },
     modes: {
       direct: streetModes,
       transit: {
@@ -40,10 +36,25 @@ export function buildPlanVariables(req: PlanRequest, now: Date = new Date()): Re
         ...(req.transitModes ? { transit: req.transitModes.map((mode) => ({ mode })) } : {}),
       },
     },
-    first: 5,
+    first: search.first,
     locale: otpLocale(req.locale),
-    ...(req.cursor ? cursorVariables(req.cursor) : {}),
+    ...(search.cursor ? cursorVariables(search.cursor) : {}),
   };
+}
+
+/**
+ * OTP variables for a trip without stops. Trips with stops are planned segment by segment
+ * (`planWithStops`), because one OTP via search takes 18-24 s on the full-Taiwan graph.
+ */
+export function buildPlanVariables(req: PlanRequest, now: Date = new Date()): Record<string, unknown> {
+  return searchVariables(req, {
+    from: req.from,
+    to: req.to,
+    time: req.time ?? toTaipeiIso(now),
+    arriveBy: req.arriveBy,
+    first: 5,
+    ...(req.cursor ? { cursor: req.cursor } : {}),
+  });
 }
 
 /** Cursors we hand out are prefixed with the direction so one field serves both. */
