@@ -18,8 +18,13 @@ const stopTimes =
 describe("bus stop index", () => {
   it("lists the bus sub-routes and directions stopping at each stop, leaving out rail", () => {
     const idx = buildBusStopRoutes(files, strToU8(stopTimes));
-    expect(idx.get("SHARED")).toEqual(new Set(["TPE10811|0", "TPE159203|0"]));
-    expect(idx.get("JILIN")).toEqual(new Set(["TPE159203|0", "TPE159203|1"]));
+    expect([...(idx.get("SHARED")?.keys() ?? [])].sort()).toEqual(["TPE10811|0", "TPE159203|0"]);
+    expect(idx.get("JILIN")).toEqual(
+      new Map([
+        ["TPE159203|0", { first: 2, last: 2 }],
+        ["TPE159203|1", { first: 1, last: 1 }],
+      ]),
+    );
     expect(idx.has("TRA_0930")).toBe(false);
   });
 

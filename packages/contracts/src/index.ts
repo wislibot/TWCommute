@@ -212,6 +212,10 @@ export const Departure = z.object({
   routeShortName: z.string().optional(),
   mode: LegMode,
   headsign: z.string().optional(),
+  /**
+   * Timetabled time. For a bus with no timetabled departure in the board's window (headway
+   * trips, or a timetable that misses buses TDX tracks) it is the predicted time, as `estimated`.
+   */
   scheduled: z.string(),
   estimated: z.string().optional(),
   realtime: Realtime,

@@ -3,12 +3,33 @@ import { editRecords } from "./csv-bytes";
 import { buildTraIndex, emptyTraIndex, readTraStopPatterns, type TraIndex } from "./tra-index";
 import { basename, readGtfsBytes, readGtfsFiles } from "./zip";
 
+/** Where a stop comes on a variant's trips: the lowest and highest stop_sequence seen. */
+export interface StopPosition {
+  first: number;
+  last: number;
+}
+
 /**
- * Bus sub-routes stopping at each stop, as `<SubRouteUID>|<Direction>` keyed by StopUID, from the
- * GTFS (TDX layout: stop_id = StopUID, route_id = `<SubRouteUID>_<Direction>`). Lets a Taipei ETA
- * row, which names only its route, be matched to the one variant that serves its stop.
+ * Bus sub-routes stopping at each stop, as `<SubRouteUID>|<Direction>` → position, keyed by
+ * StopUID, from the GTFS (TDX layout: stop_id = StopUID, route_id = `<SubRouteUID>_<Direction>`).
+ * Lets a Taipei ETA row, which names only its route, be matched to the one variant that serves its
+ * stop, and tells whether a variant reaches the rider's stop after the boarding stop.
  */
-export type BusStopRoutes = Map<string, Set<string>>;
+export type BusStopRoutes = Map<string, Map<string, StopPosition>>;
+
+function addPosition(out: BusStopRoutes, stop: string, key: string, first: number, last: number): void {
+  let variants = out.get(stop);
+  if (!variants) {
+    variants = new Map();
+    out.set(stop, variants);
+  }
+  const seen = variants.get(key);
+  if (!seen) variants.set(key, { first, last });
+  else {
+    seen.first = Math.min(seen.first, first);
+    seen.last = Math.max(seen.last, last);
+  }
+}
 
 export interface GtfsIndexes {
   tra: TraIndex;
@@ -34,12 +55,11 @@ export function buildBusStopRoutes(files: { routes?: string; trips?: string }, s
   }
   const out: BusStopRoutes = new Map();
   if (keyByTrip.size === 0) return out;
-  editRecords(stopTimes, ["trip_id", "stop_id"], (v) => {
+  editRecords(stopTimes, ["trip_id", "stop_id", "stop_sequence"], (v) => {
     const key = keyByTrip.get(v.trip_id ?? "");
-    if (!key || !v.stop_id) return undefined;
-    const set = out.get(v.stop_id);
-    if (set) set.add(key);
-    else out.set(v.stop_id, new Set([key]));
+    const seq = Number(v.stop_sequence);
+    if (!key || !v.stop_id || !Number.isFinite(seq)) return undefined;
+    addPosition(out, v.stop_id, key, seq, seq);
     return undefined;
   });
   return out;
@@ -71,10 +91,8 @@ export function loadGtfsIndexes(zip: Uint8Array): GtfsIndexes {
     }
     const bytes = stopTimes.get(`${dir}stop_times.txt`);
     if (!bytes) continue;
-    for (const [stop, keys] of buildBusStopRoutes(feed, bytes)) {
-      const set = busStopRoutes.get(stop);
-      if (set) for (const k of keys) set.add(k);
-      else busStopRoutes.set(stop, keys);
+    for (const [stop, variants] of buildBusStopRoutes(feed, bytes)) {
+      for (const [key, pos] of variants) addPosition(busStopRoutes, stop, key, pos.first, pos.last);
     }
   }
   const traStopTimes = stopTimes.get(`${traDir}stop_times.txt`);

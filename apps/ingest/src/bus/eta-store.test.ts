@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import { busEtas } from "../test-fixtures";
 import { BusEtaStore } from "./eta-store";
 
+/** A stop's place on each variant, as `<SubRouteUID>|<Direction>` → stop_sequence. */
+const at = (seqs: Record<string, number>) =>
+  new Map(Object.entries(seqs).map(([key, seq]) => [key, { first: seq, last: seq }]));
+
 describe("BusEtaStore", () => {
   const store = new BusEtaStore();
   store.replace("Taipei", busEtas);
@@ -157,8 +161,8 @@ describe("BusEtaStore with the GTFS stop index", () => {
   // Both variants stop at SHARED; only 685經吉林 (TPE159203) stops at JILIN.
   store.setStopRoutes(
     new Map([
-      ["SHARED", new Set(["TPE10811|0", "TPE159203|0"])],
-      ["JILIN", new Set(["TPE159203|0"])],
+      ["SHARED", at({ "TPE10811|0": 3, "TPE159203|0": 3 })],
+      ["JILIN", at({ "TPE159203|0": 9 })],
     ]),
   );
 
@@ -189,15 +193,21 @@ describe("BusEtaStore for a trip leg at a stop several variants serve", () => {
   store.replace("Taipei", [{ StopUID: "SHARED", RouteUID: "TPE10811", Direction: 0, EstimateTime: 120 }]);
   store.setStopRoutes(
     new Map([
-      ["SHARED", new Set(["TPE10811|0", "TPE159203|0"])],
-      ["BOTH_LATER", new Set(["TPE10811|0", "TPE159203|0"])],
-      ["JILIN", new Set(["TPE159203|0"])],
+      ["SHARED", at({ "TPE10811|0": 3, "TPE159203|0": 3 })],
+      ["BOTH_LATER", at({ "TPE10811|0": 12, "TPE159203|0": 20 })],
+      ["JILIN", at({ "TPE159203|0": 9 })],
+      // 685 passes EARLIER (stop 1) before SHARED; 685經吉林 reaches it only after (stop 25).
+      ["EARLIER", at({ "TPE10811|0": 1, "TPE159203|0": 25 })],
     ]),
   );
 
   it("uses the route's next bus when every variant here also stops where the rider gets off", () => {
     const q = { stopUid: "SHARED", subRouteUid: "TPE10811", direction: 0, toStopUid: "BOTH_LATER" };
     expect(store.find(q)?.etaSeconds).toBe(120);
+  });
+
+  it("does not when a variant passes the rider's stop only before the boarding stop", () => {
+    expect(store.find({ stopUid: "SHARED", subRouteUid: "TPE159203", direction: 0, toStopUid: "EARLIER" })).toBeNull();
   });
 
   it("does not when only some variants go there, or without the alighting stop", () => {

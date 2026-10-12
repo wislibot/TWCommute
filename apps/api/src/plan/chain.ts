@@ -69,14 +69,18 @@ function samePlace(a: PlaceInput, b: PlaceInput): boolean {
   return Math.abs(a.lat - b.lat) < 1e-4 && Math.abs(a.lon - b.lon) < 1e-4;
 }
 
-/** A zero-length segment for a stop at the same place as the previous or next one. */
-function stayHere(place: PlaceInput, at: string, segment: number): Itinerary {
-  const here = {
-    name: place.label ?? "",
-    lat: place.lat,
-    lon: place.lon,
-    ...(place.stopId ? { stopId: place.stopId } : {}),
-  };
+const point = (place: PlaceInput) => ({
+  name: place.label ?? "",
+  lat: place.lat,
+  lon: place.lon,
+  ...(place.stopId ? { stopId: place.stopId } : {}),
+});
+
+/**
+ * A zero-length segment for a stop at the same place as the previous or next one. Each end keeps
+ * its own name, so the app shows the stay at the stop the user named.
+ */
+function stayHere(from: PlaceInput, to: PlaceInput, at: string, segment: number): Itinerary {
   return {
     id: `s${segment}.here`,
     start: at,
@@ -87,8 +91,8 @@ function stayHere(place: PlaceInput, at: string, segment: number): Itinerary {
     legs: [
       {
         mode: "WALK",
-        from: here,
-        to: here,
+        from: point(from),
+        to: point(to),
         start: { scheduled: at },
         end: { scheduled: at },
         durationSeconds: 0,
@@ -106,7 +110,9 @@ async function searchSegment(
   search: SearchInput,
   segment: number,
 ): Promise<{ options: Itinerary[]; errors: PlanError[] }> {
-  if (samePlace(search.from, search.to)) return { options: [stayHere(search.from, search.time, segment)], errors: [] };
+  if (samePlace(search.from, search.to)) {
+    return { options: [stayHere(search.from, search.to, search.time, segment)], errors: [] };
+  }
   const data = await otp.query<OtpPlanData>(PLAN_QUERY, searchVariables(req, search), req.locale);
   const conn = data.planConnection;
   const options = (conn?.edges ?? [])
@@ -183,13 +189,20 @@ type Chain = Itinerary[];
 const chainStart = (c: Chain) => startOf(c[0] as Itinerary);
 const chainEnd = (c: Chain) => endOf(c.at(-1) as Itinerary);
 
-/** Time spent at the stops beyond the requested stays: the least over all stops. */
-function slack(c: Chain, stayMs: number[]): number {
-  let least = Number.POSITIVE_INFINITY;
-  for (let s = 0; s + 1 < c.length; s++) {
-    least = Math.min(least, startOf(c[s + 1] as Itinerary) - endOf(c[s] as Itinerary) - (stayMs[s] ?? 0));
+/**
+ * How much later the first segment could leave (or, from the end, how much earlier the last could
+ * arrive) and still make the same transit: the spare time at each stop beyond its stay, added up
+ * from that end across walking and zero-length segments until the first transit segment.
+ */
+function slack(c: Chain, stayMs: number[], fromEnd = false): number {
+  let total = 0;
+  for (let k = 0; k + 1 < c.length; k++) {
+    const s = fromEnd ? c.length - 2 - k : k;
+    total += Math.max(0, startOf(c[s + 1] as Itinerary) - endOf(c[s] as Itinerary) - (stayMs[s] ?? 0));
+    // The segment on the far side of this stop: transit cannot move, so the slack ends there.
+    if (!streetOnly(c[fromEnd ? s : s + 1] as Itinerary)) break;
   }
-  return Number.isFinite(least) ? Math.max(0, least) : 0;
+  return total;
 }
 
 /**
@@ -296,7 +309,7 @@ export async function planWithStops(req: PlanRequest, otp: Pick<OtpClient, "quer
     page.nextCursor = `at:${toTaipeiIso(new Date(lastLeave + 60_000))}`;
   } else if (best.length > 0) {
     const firstArrive = Math.min(
-      ...best.map((c) => chainEnd(c) - (streetOnly(c.at(-1) as Itinerary) ? slack(c, stayMs) : 0)),
+      ...best.map((c) => chainEnd(c) - (streetOnly(c.at(-1) as Itinerary) ? slack(c, stayMs, true) : 0)),
     );
     page.previousCursor = `at:${toTaipeiIso(new Date(firstArrive - 60_000))}`;
   }

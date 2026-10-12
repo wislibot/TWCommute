@@ -333,6 +333,54 @@ describe("planWithStops review fixes", () => {
     );
     expect(otp.query).toHaveBeenCalledTimes(1);
     expect(plan.itineraries).toHaveLength(1);
-    expect(plan.itineraries[0]?.legs[0]).toMatchObject({ mode: "WALK", distanceMeters: 0, to: { viaIndex: 0 } });
+    expect(plan.itineraries[0]?.legs[0]).toMatchObject({
+      mode: "WALK",
+      distanceMeters: 0,
+      from: { name: "V" },
+      to: { name: "V again", viaIndex: 0 },
+    });
+  });
+});
+
+describe("planWithStops paging and zero-length stops (third review)", () => {
+  it("pages past every bus shown when a walk leads to two stops at the same place", async () => {
+    const V2 = { ...V, label: "V2" };
+    const otp = fakeOtp((v) =>
+      v.origin.label === "A"
+        ? [walkOption("A", "V", "09:00", "09:20")]
+        : [
+            option("V2", "B", "11:05", "11:05", "11:40", "11:45"),
+            option("V2", "B", "12:05", "12:05", "12:40", "12:45"),
+            option("V2", "B", "13:05", "13:05", "13:40", "13:45"),
+          ],
+    );
+    const plan = await planWithStops(
+      PlanRequest.parse({
+        from: A,
+        to: B,
+        time: t("09:00"),
+        vias: [
+          { place: V, dwellMinutes: 30 },
+          { place: V2, dwellMinutes: 30 },
+        ],
+      }),
+      otp,
+      now,
+    );
+    expect(plan.itineraries.map((it) => it.legs.at(-3)?.start.scheduled)).toEqual([t("11:05"), t("12:05"), t("13:05")]);
+    // The walk could leave as late as 11:45 and still catch the 13:05 bus after both 30-minute
+    // stays; leaving later reaches no bus shown, so the next page starts there instead of at 09:01.
+    expect(plan.nextCursor).toBe(`at:${t("11:46")}`);
+  });
+
+  it("keeps the destination's name when the last stop is the destination", async () => {
+    const otp = fakeOtp(() => [option("A", "V", "09:05", "09:10", "09:25", "09:30")]);
+    const plan = await planWithStops(
+      PlanRequest.parse({ from: A, to: { ...V, label: "Destination" }, vias: [{ place: V, dwellMinutes: 30 }] }),
+      otp,
+      now,
+    );
+    const last = plan.itineraries[0]?.legs.at(-1);
+    expect(last).toMatchObject({ distanceMeters: 0, from: { name: "V", viaIndex: 0 }, to: { name: "Destination" } });
   });
 });

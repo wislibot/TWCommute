@@ -153,3 +153,31 @@ describe("stopDepartures for routes that run on headways", () => {
     expect(out?.departures[1]).toMatchObject({ routeShortName: "307莒光往板橋前站", headsign: "板橋前站" });
   });
 });
+
+describe("stopDepartures with live predictions only", () => {
+  const pattern = (gtfsId: string): Pattern => ({
+    directionId: 0,
+    headsign: null,
+    route: { gtfsId, shortName: "x", mode: "BUS" },
+  });
+
+  it("shows a live prediction for a route whose next timetabled trip is outside the board", async () => {
+    // Route 253 at Taipei Main Station: timetable 21:18, TDX bus in 5 minutes (real data).
+    const d = deps([], async (qs) => qs.map(() => ({ ...eta(300), asOf: "2026-10-12T09:00:00+08:00" })), [
+      pattern("tw:TPE10735_0"),
+    ]);
+    const out = await stopDepartures("tw:TPE15209", d);
+    expect(out?.departures.map((x) => [x.routeId, x.realtime, x.estimated])).toEqual([
+      ["tw:TPE10735_0", "live", "2026-10-12T01:05:00.000Z"],
+    ]);
+  });
+
+  it("drops a headway route's ETA more than an hour away", async () => {
+    const d = deps([], async (qs) => qs.map(() => ({ ...eta(4000), asOf: "2026-10-12T09:00:00+08:00" })), [
+      pattern("tw:TPE20000_0"),
+    ]);
+    const out = await stopDepartures("tw:TPE15209", d);
+    expect(d.ingest.busEta).toHaveBeenCalledTimes(1);
+    expect(out?.departures).toEqual([]);
+  });
+});

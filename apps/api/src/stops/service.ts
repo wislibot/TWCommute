@@ -39,6 +39,9 @@ export async function nearbyStops(
 
 /** The ingest endpoint accepts at most this many queries per call. */
 const ETA_BATCH = 50;
+/** A board shows departures in the next hour, at most this many in total across routes. */
+const BOARD_WINDOW_S = 3600;
+const BOARD_DEPARTURES = 20;
 
 interface BoardRow {
   dep: Departure;
@@ -57,8 +60,8 @@ export async function stopDepartures(stopId: string, deps: StopDeps): Promise<De
   const data = await deps.otp.query<OtpStopDeparturesData>(STOP_DEPARTURES_QUERY, {
     id: stopId,
     startTime: Math.floor(now.getTime() / 1000),
-    timeRange: 3600,
-    n: 3,
+    timeRange: BOARD_WINDOW_S,
+    n: BOARD_DEPARTURES,
   });
   const stop = data.stop;
   if (!stop) return null;
@@ -98,9 +101,11 @@ export async function stopDepartures(stopId: string, deps: StopDeps): Promise<De
   }
   const targets = [...firsts.values()];
 
-  // Bus routes at this stop with no listed departure. OTP lists no stop times for trips that run
-  // on headways (frequencies.txt: 219 routes in the TDX feed, e.g. 307莒光 at Taipei Main Station),
-  // although it routes them; for those the live ETA is the departure.
+  // Bus routes at this stop with no timetabled departure in the board's hour. OTP lists no stop
+  // times for trips that run on headways (frequencies.txt: 219 routes in the TDX feed, e.g. 307莒光
+  // at Taipei Main Station), and Taipei timetables miss buses TDX tracks (on 2026-10-12 at 20:05,
+  // route 253's next timetabled trip was 21:18 while TDX predicted a bus in 5 minutes). A live
+  // prediction within the hour is shown as the departure.
   const listed = new Set(rows.map((r) => r.dep.routeId));
   const headway = new Map<
     string,
@@ -140,7 +145,12 @@ export async function stopDepartures(stopId: string, deps: StopDeps): Promise<De
   for (const [k, h] of headwayRoutes.entries()) {
     const eta = results[targets.length + k];
     if (!eta || eta.etaSeconds === null) continue;
-    const due = new Date(Date.parse(eta.asOf) + eta.etaSeconds * 1000).toISOString();
+    const dueMs = Date.parse(eta.asOf) + eta.etaSeconds * 1000;
+    // Same window as the timetable: from a minute ago (bus at the stop) to an hour ahead.
+    if (!Number.isFinite(dueMs) || dueMs < now.getTime() - 60_000 || dueMs > now.getTime() + BOARD_WINDOW_S * 1000) {
+      continue;
+    }
+    const due = new Date(dueMs).toISOString();
     extra.push({
       routeId: h.route.gtfsId,
       ...(h.route.shortName ? { routeShortName: h.route.shortName } : {}),

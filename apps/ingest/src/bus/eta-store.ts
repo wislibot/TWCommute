@@ -1,4 +1,5 @@
 import type { TdxBusEta, TdxBusRoute } from "@twc/tdx";
+import type { StopPosition } from "../gtfs/indexes";
 
 export interface EtaQuery {
   stopUid: string;
@@ -67,7 +68,7 @@ export class SubRouteIndex {
 export function variantsAtStop(
   all: ReadonlySet<string>,
   direction: number,
-  served: ReadonlySet<string> | undefined,
+  served: { has(key: string): boolean } | undefined,
 ): ReadonlySet<string> {
   if (!served || all.size <= 1) return all;
   const here = new Set([...all].filter((s) => served.has(`${s}|${direction}`)));
@@ -124,10 +125,10 @@ export class BusEtaStore {
     return new Set();
   };
 
-  /** Bus sub-routes serving each stop, from the GTFS (see `variantsAtStop`). */
-  private stopRoutes: ReadonlyMap<string, ReadonlySet<string>> = new Map();
+  /** Bus sub-routes serving each stop and where on them, from the GTFS (see `variantsAtStop`). */
+  private stopRoutes: ReadonlyMap<string, ReadonlyMap<string, StopPosition>> = new Map();
 
-  setStopRoutes(index: ReadonlyMap<string, ReadonlySet<string>>): void {
+  setStopRoutes(index: ReadonlyMap<string, ReadonlyMap<string, StopPosition>>): void {
     this.stopRoutes = index;
   }
 
@@ -169,9 +170,14 @@ export class BusEtaStore {
     const alighting = q.toStopUid ? this.stopRoutes.get(q.toStopUid) : undefined;
     const variantsHere: VariantLookup = (route, direction) => {
       const here = variantsAtStop(this.variantsOf(route, direction), direction, served);
-      // Several variants here, all going to the rider's stop: whichever comes next is the one to take.
+      // Several variants here, all going on to the rider's stop (after this one): whichever comes
+      // next is the one to take.
       if (here.size > 1 && served && alighting && q.subRouteUid && here.has(q.subRouteUid)) {
-        const all = [...here].every((v) => alighting.has(`${v}|${direction}`));
+        const all = [...here].every((v) => {
+          const from = served.get(`${v}|${direction}`);
+          const to = alighting.get(`${v}|${direction}`);
+          return from !== undefined && to !== undefined && to.last > from.first;
+        });
         if (all) return new Set([q.subRouteUid]);
       }
       return here;

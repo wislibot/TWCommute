@@ -49,7 +49,7 @@ export function analyzeBusMapping(
   stops: TdxBusStop[],
   routes: TdxBusRoute[],
   etas: TdxBusEta[],
-  stopRoutes?: ReadonlyMap<string, ReadonlySet<string>>,
+  stopRoutes?: ReadonlyMap<string, { has(key: string): boolean }>,
 ): BusMappingResult {
   const uStops = uniqueBy(stops, (s) => idOf(s.StopUID));
   const uRoutes = uniqueBy(routes, (r) => idOf(r.RouteUID));
