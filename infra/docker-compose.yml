@@ -18,6 +18,21 @@ services:
       - ../data:/data
     ports:
       - "8081:8081"
+    # Healthy once every YouBike city has loaded: OTP reads the docks when it starts and does not
+    # retry, so it waits for this (see otp below).
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - >-
+          fetch('http://localhost:8081/health').then((r) => r.json())
+          .then((b) => process.exit(b.feeds.every((f) => !f.feed.startsWith('bike-availability') || f.lastSuccessAt) ? 0 : 1))
+          .catch(() => process.exit(1))
+      interval: 10s
+      timeout: 5s
+      start_period: 5m
+      retries: 60
     restart: unless-stopped
 
   otp:
@@ -30,7 +45,8 @@ services:
     ports:
       - "8080:8080"
     depends_on:
-      - ingest
+      ingest:
+        condition: service_healthy
     restart: unless-stopped
 
   api:

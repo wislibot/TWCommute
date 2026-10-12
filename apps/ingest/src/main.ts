@@ -28,7 +28,7 @@ async function main() {
   });
   const log = app.log;
 
-  const national = await readIfExists(gtfsPaths(config.DATA_DIR).national);
+  const national = await readIfExists(config.GTFS_INDEX_PATH ?? gtfsPaths(config.DATA_DIR).national);
   if (national) {
     const indexes = loadGtfsIndexes(national.data);
     state.traIndex = indexes.tra;

@@ -8,12 +8,16 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { gtfsPaths, readIfExists } from "./files";
 import { cleanFeed, renderOtpConfigs, splitBundle } from "./prepare-otp";
+import { parseBBox } from "./region";
 
 async function main() {
   const dataDir = process.env.DATA_DIR ?? "./data";
   const infraDir = resolve(process.env.INFRA_DIR ?? "../../infra/otp");
   const otpDir = join(dataDir, "otp");
   const ingestUrl = process.env.OTP_INGEST_URL ?? "http://ingest:8081";
+  // GTFS_BBOX=minLon,minLat,maxLon,maxLat keeps only the trips serving that area (smaller machines).
+  const region = process.env.GTFS_BBOX ? parseBBox(process.env.GTFS_BBOX) : undefined;
+  if (region) console.log(`Region: ${process.env.GTFS_BBOX}`);
   const paths = gtfsPaths(dataDir);
 
   const feeds = [];
@@ -37,7 +41,7 @@ async function main() {
     // feed; keeping both plans every metro trip twice (Phase 0, docs/DATA.md).
     const hasTrtcFeed = feeds.some((g) => g.feedId === "trtc");
     const excludeAgencies = hasTrtcFeed && f.feedId !== "trtc" ? ["TRTC"] : [];
-    const { data, dropped, repairs } = cleanFeed(f.data, { excludeAgencies });
+    const { data, dropped, repairs } = cleanFeed(f.data, { excludeAgencies, ...(region ? { region } : {}) });
     f.data = data;
     if (dropped.length) console.log(`  ${f.feedId}: dropped ${dropped.join(", ")} (not used by OTP)`);
     for (const r of repairs) console.log(`  ${f.feedId}: ${r.file}: ${r.rows} rows with ${r.what}`);

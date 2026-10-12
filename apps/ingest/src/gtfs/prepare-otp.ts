@@ -1,5 +1,6 @@
 import { strToU8, unzipSync, zipSync } from "fflate";
 import { parseCsv } from "./csv";
+import { type BBox, trimToRegion } from "./region";
 import { dropStops, REPAIR_INPUT_FILES, type Repair, type RepairOptions, repairFeed, repairStopTimes } from "./repair";
 import { basename } from "./zip";
 
@@ -113,9 +114,13 @@ export interface CleanFeedResult {
  * would abort the graph build (`repairFeed`, `repairStopTimes`). Returns the input unchanged when
  * there is nothing to fix.
  */
-export function cleanFeed(data: Uint8Array, options: RepairOptions & { skip?: string[] } = {}): CleanFeedResult {
+export function cleanFeed(
+  data: Uint8Array,
+  options: RepairOptions & { skip?: string[]; region?: BBox } = {},
+): CleanFeedResult {
   const skip = options.skip ?? OTP_SKIPPED_FILES;
-  const dropped = listZip(data).filter((n) => skip.includes(basename(n).toLowerCase()));
+  const names = listZip(data);
+  const dropped = names.filter((n) => skip.includes(basename(n).toLowerCase()));
   const isInput = (name: string) => REPAIR_INPUT_FILES.includes(basename(name).toLowerCase());
   const small = unzipSync(data, { filter: (f) => !f.name.endsWith("/") && isInput(f.name) });
   const decoder = new TextDecoder();
@@ -123,24 +128,48 @@ export function cleanFeed(data: Uint8Array, options: RepairOptions & { skip?: st
   const texts = new Map(
     Object.entries(small).map(([path, bytes]) => [basename(path).toLowerCase(), decoder.decode(bytes)]),
   );
-  const { changed, removedTrips, repairs } = repairFeed(texts, options);
-  for (const [file, text] of changed) texts.set(file, text);
-
+  const pathNamed = (file: string) => names.find((n) => basename(n).toLowerCase() === file);
+  const inflate = (path: string | undefined) =>
+    path ? (unzipSync(data, { filter: (f) => f.name === path })[path] as Uint8Array) : undefined;
+  const stopTimesPath = pathNamed("stop_times.txt");
+  const original = inflate(stopTimesPath);
+  let stopTimes = original;
+  const dirty = new Set<string>();
   const fixed: Record<string, Uint8Array> = {};
-  const stopTimesPath = listZip(data).find((n) => basename(n).toLowerCase() === "stop_times.txt");
-  if (stopTimesPath) {
-    const raw = unzipSync(data, { filter: (f) => f.name === stopTimesPath })[stopTimesPath] as Uint8Array;
-    const st = repairStopTimes(raw, removedTrips);
-    if (st.data !== raw) fixed[stopTimesPath] = st.data;
+  const repairs: Repair[] = [];
+
+  if (options.region && stopTimes) {
+    const shapesPath = pathNamed("shapes.txt");
+    const shapes = inflate(shapesPath);
+    const region = trimToRegion(texts, stopTimes, shapes, options.region);
+    for (const [file, text] of region.changed) {
+      texts.set(file, text);
+      dirty.add(file);
+    }
+    stopTimes = region.stopTimes;
+    if (shapesPath && region.shapes && region.shapes !== shapes) fixed[shapesPath] = region.shapes;
+    repairs.push(...region.repairs);
+  }
+
+  const repaired = repairFeed(texts, options);
+  for (const [file, text] of repaired.changed) {
+    texts.set(file, text);
+    dirty.add(file);
+  }
+  repairs.push(...repaired.repairs);
+
+  if (stopTimesPath && stopTimes) {
+    const st = repairStopTimes(stopTimes, repaired.removedTrips);
+    if (st.data !== original) fixed[stopTimesPath] = st.data;
     repairs.push(...st.repairs);
     const orphans = dropStops(texts, st.orphanStops);
     for (const [file, text] of orphans.changed) {
       texts.set(file, text);
-      changed.set(file, text);
+      dirty.add(file);
     }
     repairs.push(...orphans.repairs);
   }
-  for (const [file, text] of changed) fixed[pathOf.get(file) as string] = strToU8(text);
+  for (const file of dirty) fixed[pathOf.get(file) as string] = strToU8(texts.get(file) as string);
   if (dropped.length === 0 && Object.keys(fixed).length === 0) return { data, dropped, repairs };
 
   const kept = unzipSync(data, {

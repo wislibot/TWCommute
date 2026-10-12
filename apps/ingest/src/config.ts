@@ -32,6 +32,11 @@ const EnvSchema = z.object({
   /** Optional shared secret for /internal/* routes. */
   INTERNAL_TOKEN: z.string().optional(),
   DATA_DIR: z.string().default("./data"),
+  /**
+   * GTFS zip to index TRA trains and bus stops from (default: the national download in DATA_DIR).
+   * A regional setup points this at the trimmed feed OTP uses, which needs far less memory.
+   */
+  GTFS_INDEX_PATH: z.string().optional(),
   // Defaults fit the free TDX plan (5 requests/minute): one city, polled about 2.5 times a minute.
   // Production (all cities, 30-60 s freshness) needs ~60 requests/minute; see docs/DATA.md.
   BIKE_CITIES: cityList<BikeCity>(BIKE_CITIES, "Taipei"),

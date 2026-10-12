@@ -21,3 +21,4 @@ apps/mobile/dist/
 *.p12
 *.key
 *.mobileprovision
+data-taipei/
