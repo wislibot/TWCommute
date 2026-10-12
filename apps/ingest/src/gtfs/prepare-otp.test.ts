@@ -130,6 +130,9 @@ describe("cleanFeed with excluded agencies", () => {
       "trips.txt": enc("route_id,service_id,trip_id\nTRTC_BL_BL-1_0,D,M1\nTPE10307_0,D,B1\n"),
       "frequencies.txt": enc("trip_id,start_time,end_time,headway_secs\nM1,06:00:00,09:00:00,300\n"),
       "stops.txt": enc("stop_id,stop_name\nTRTC_BL01,頂埔\nTRTC_BL12,台北車站\nTPE1,shared\n"),
+      "transfers.txt": enc(
+        "from_stop_id,to_stop_id,transfer_type,from_trip_id\nTRTC_BL01,TPE1,2,\nTRTC_BL12,TPE1,2,\nTPE1,TPE1,1,M1\n",
+      ),
       "stop_times.txt": enc(
         "trip_id,arrival_time,departure_time,stop_id,stop_sequence\n" +
           "M1,06:00:00,06:00:00,TRTC_BL01,1\nM1,06:20:00,06:20:00,TRTC_BL12,2\nM1,06:25:00,06:25:00,TPE1,3\n" +
@@ -148,13 +151,17 @@ describe("cleanFeed with excluded agencies", () => {
     expect(text("stop_times.txt")).toBe(
       "trip_id,arrival_time,departure_time,stop_id,stop_sequence\nB1,07:00:00,07:00:00,TPE1,1\nB1,07:10:00,07:10:00,TRTC_BL12,2\n",
     );
+    // Transfers from the removed trip M1 and from the stop only it served go too.
+    expect(text("transfers.txt")).toBe("from_stop_id,to_stop_id,transfer_type,from_trip_id\nTRTC_BL12,TPE1,2,\n");
     expect(repairs.map((r) => `${r.file}:${r.rows}`)).toEqual([
       "agency.txt:1",
       "routes.txt:1",
       "trips.txt:1",
       "frequencies.txt:1",
+      "transfers.txt:1",
       "stop_times.txt:3",
       "stops.txt:1",
+      "transfers.txt:1",
     ]);
   });
 });

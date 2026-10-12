@@ -107,6 +107,13 @@ export interface OtpStopDeparturesData {
     lat: number;
     lon: number;
     vehicleMode: string | null;
+    patterns:
+      | ({
+          directionId: number | null;
+          headsign: string | null;
+          route: { gtfsId: string; shortName: string | null; mode: string | null };
+        } | null)[]
+      | null;
     stoptimesWithoutPatterns: (OtpStoptime | null)[] | null;
   } | null;
 }

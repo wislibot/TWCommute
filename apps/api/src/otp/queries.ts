@@ -98,6 +98,11 @@ export const STOP_DEPARTURES_QUERY = /* GraphQL */ `
       lat
       lon
       vehicleMode
+      patterns {
+        directionId
+        headsign
+        route { gtfsId shortName mode }
+      }
       stoptimesWithoutPatterns(startTime: $startTime, timeRange: $timeRange, numberOfDepartures: $n, omitNonPickups: true) {
         scheduledDeparture
         realtimeDeparture

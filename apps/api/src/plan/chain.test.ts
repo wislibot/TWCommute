@@ -259,3 +259,80 @@ describe("joinSegments", () => {
     expect(joined.id).toBe("a+w+c");
   });
 });
+
+/** An option that only walks: OTP pins it to the search time. */
+function walkOption(from: string, to: string, leave: string, arrive: string): OtpItinerary {
+  const base = option(from, to, leave, leave, arrive, arrive);
+  const walk = { ...(base.legs[0] as OtpLeg), to: place(to), end: { scheduledTime: t(arrive), estimated: null } };
+  return { ...base, legs: [walk] };
+}
+
+describe("planWithStops review fixes", () => {
+  const req = (dwellMinutes: number, extra: Record<string, unknown> = {}) =>
+    PlanRequest.parse({ from: A, to: B, vias: [{ place: V, dwellMinutes }], ...extra });
+
+  it("moves a walk after a stop to leave when each option's stay ends", async () => {
+    const otp = fakeOtp((v) =>
+      v.origin.label === "A"
+        ? [option("A", "V", "10:00", "10:02", "10:28", "10:30"), option("A", "V", "10:06", "10:08", "10:33", "10:35")]
+        : [walkOption("V", "B", "11:00", "11:05")],
+    );
+    const plan = await planWithStops(req(30), otp, now);
+    expect(plan.itineraries.map((it) => [it.start, it.end])).toEqual([
+      [t("10:00"), t("11:05")],
+      [t("10:06"), t("11:10")],
+    ]);
+    const walk = plan.itineraries[1]?.legs.at(-1);
+    expect([walk?.start.scheduled, walk?.end.scheduled]).toEqual([t("11:05"), t("11:10")]);
+  });
+
+  it("offers only real longer stays: later departures nothing beats", async () => {
+    const otp = fakeOtp((v) =>
+      v.origin.label === "A"
+        ? [option("A", "V", "09:05", "09:10", "09:25", "09:30")]
+        : [
+            option("V", "B", "11:01", "11:01", "11:58", "12:00"), // leaves before the chosen one, arrives later
+            option("V", "B", "11:02", "11:02", "11:50", "11:55"), // chosen
+            option("V", "B", "11:03", "11:03", "12:25", "12:30"), // later but beaten by 11:05
+            option("V", "B", "11:05", "11:05", "12:05", "12:10"),
+          ],
+    );
+    const plan = await planWithStops(req(90), otp, now);
+    expect(plan.itineraries.map((it) => [it.legs.at(-3)?.start.scheduled, it.end])).toEqual([
+      [t("11:02"), t("11:55")],
+      [t("11:05"), t("12:10")],
+    ]);
+  });
+
+  it("pages past the slack of a walk that could leave later", async () => {
+    const otp = fakeOtp((v) =>
+      v.origin.label === "A"
+        ? [walkOption("A", "V", "09:00", "09:20")]
+        : [option("V", "B", "10:10", "10:12", "10:38", "10:40")],
+    );
+    // Ready at 09:50, the bus leaves at 10:10: the walk could have left 20 minutes later.
+    const plan = await planWithStops(req(30, { time: t("09:00") }), otp, now);
+    expect(plan.nextCursor).toBe(`at:${t("09:21")}`);
+  });
+
+  it("treats a stop at the starting point as staying there first", async () => {
+    const otp = fakeOtp((v) => {
+      expect(v.origin.label).toBe("V again");
+      expect(v.dateTime).toEqual({ earliestDeparture: t("09:30") });
+      return [option("V", "B", "09:35", "09:40", "10:20", "10:25")];
+    });
+    const plan = await planWithStops(
+      PlanRequest.parse({
+        from: V,
+        to: B,
+        time: t("09:00"),
+        vias: [{ place: { ...V, label: "V again" }, dwellMinutes: 30 }],
+      }),
+      otp,
+      now,
+    );
+    expect(otp.query).toHaveBeenCalledTimes(1);
+    expect(plan.itineraries).toHaveLength(1);
+    expect(plan.itineraries[0]?.legs[0]).toMatchObject({ mode: "WALK", distanceMeters: 0, to: { viaIndex: 0 } });
+  });
+});

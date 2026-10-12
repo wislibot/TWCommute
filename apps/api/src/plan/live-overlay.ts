@@ -27,8 +27,16 @@ function isLeavingSoon(leg: Leg, now: Date, windowMinutes: number): boolean {
   );
 }
 
+/**
+ * TDX's ETA is for the next bus at the stop. If that bus comes this much earlier than the one the
+ * leg is planned on, it is a different bus (the leg waits for a later one), so it is not shown.
+ */
+export const ETA_MATCH_TOLERANCE_MS = 10 * 60_000;
+
 export function applyEta(leg: Leg, eta: EtaResult | null): Leg {
   if (!eta || eta.etaSeconds === null) return leg;
+  const predicted = Date.parse(eta.asOf) + eta.etaSeconds * 1000;
+  if (Date.parse(leg.start.scheduled) - predicted > ETA_MATCH_TOLERANCE_MS) return leg;
   return {
     ...leg,
     realtime: "live",

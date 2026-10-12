@@ -30,7 +30,12 @@ export const KEYED_FILES: Record<string, string> = {
 };
 
 /** Small files the repair reads; stop_times.txt is filtered separately as bytes. */
-export const REPAIR_INPUT_FILES = [...Object.keys(KEYED_FILES), "frequencies.txt", "calendar_dates.txt"];
+export const REPAIR_INPUT_FILES = [
+  ...Object.keys(KEYED_FILES),
+  "frequencies.txt",
+  "calendar_dates.txt",
+  "transfers.txt",
+];
 
 /** A GTFS text file as raw records, so untouched rows keep their exact text. */
 export class CsvTable {
@@ -237,6 +242,19 @@ export function repairFeed(files: Map<string, string>, options: RepairOptions = 
     mark("frequencies.txt", n > 0);
   }
 
+  // transfers.txt points at stops, routes and trips; drop rows whose target is gone.
+  const transfers = tables.get("transfers.txt");
+  if (transfers) {
+    const before = transfers.records.length;
+    if (stops)
+      dropDangling(transfers, "transfers.txt", ["from_stop_id", "to_stop_id"], stops.values("stop_id"), repairs);
+    if (routes)
+      dropDangling(transfers, "transfers.txt", ["from_route_id", "to_route_id"], routes.values("route_id"), repairs);
+    if (trips)
+      dropDangling(transfers, "transfers.txt", ["from_trip_id", "to_trip_id"], trips.values("trip_id"), repairs);
+    mark("transfers.txt", transfers.records.length !== before);
+  }
+
   for (const file of mergeIdenticalServices(tables, repairs)) changed.add(file);
 
   return {
@@ -311,6 +329,7 @@ export function dropStops(
   for (const [file, columns] of [
     ["stops.txt", ["stop_id"]],
     ["pathways.txt", ["from_stop_id", "to_stop_id"]],
+    ["transfers.txt", ["from_stop_id", "to_stop_id"]],
   ] as const) {
     const text = files.get(file);
     if (text === undefined) continue;

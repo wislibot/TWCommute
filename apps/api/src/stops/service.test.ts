@@ -27,7 +27,9 @@ function stoptime(route: string, dep: string, extra: Partial<OtpStoptime> = {}):
   };
 }
 
-function board(stoptimes: OtpStoptime[]): OtpStopDeparturesData {
+type Pattern = NonNullable<NonNullable<NonNullable<OtpStopDeparturesData["stop"]>["patterns"]>[number]>;
+
+function board(stoptimes: OtpStoptime[], patterns: Pattern[] = []): OtpStopDeparturesData {
   return {
     stop: {
       gtfsId: "tw:TPE15209",
@@ -36,6 +38,7 @@ function board(stoptimes: OtpStoptime[]): OtpStopDeparturesData {
       lat: 25.046,
       lon: 121.517,
       vehicleMode: "BUS",
+      patterns,
       stoptimesWithoutPatterns: stoptimes,
     },
   };
@@ -51,9 +54,13 @@ const eta = (etaSeconds: number | null): EtaResult => ({
   asOf: "2026-10-12T09:00:00+08:00",
 });
 
-function deps(stoptimes: OtpStoptime[], busEta: (q: EtaQuery[]) => Promise<(EtaResult | null)[]>) {
+function deps(
+  stoptimes: OtpStoptime[],
+  busEta: (q: EtaQuery[]) => Promise<(EtaResult | null)[]>,
+  patterns: Pattern[] = [],
+) {
   return {
-    otp: { query: vi.fn().mockResolvedValue(board(stoptimes)) },
+    otp: { query: vi.fn().mockResolvedValue(board(stoptimes, patterns)) },
     ingest: { busEta: vi.fn(busEta) },
     now: () => new Date("2026-10-12T09:00:00+08:00"),
   };
@@ -111,5 +118,38 @@ describe("stopDepartures", () => {
     });
     const fallback = await stopDepartures("tw:TPE15209", down);
     expect(fallback?.departures.map((x) => x.realtime)).toEqual(["scheduled", "scheduled"]);
+  });
+});
+
+describe("stopDepartures for routes that run on headways", () => {
+  it("shows the live ETA of a bus route OTP lists no stop times for", async () => {
+    const pattern = (gtfsId: string, shortName: string, directionId: number): Pattern => ({
+      directionId,
+      headsign: "板橋前站",
+      route: { gtfsId, shortName, mode: "BUS" },
+    });
+    const d = deps(
+      [stoptime("TPE103070_0", "09:05")],
+      async (qs) =>
+        qs.map((q) => (q.subRouteUid === "TPE157462" ? { ...eta(336), asOf: "2026-10-12T09:00:00+08:00" } : null)),
+      // 307莒光 runs only on headways (frequencies.txt); 307 also has timetabled trips listed above.
+      [
+        pattern("tw:TPE103070_0", "307", 0),
+        pattern("tw:TPE157462_1", "307莒光往板橋前站", 1),
+        pattern("tw:TPE99_0", "x", 0),
+      ],
+    );
+    const out = await stopDepartures("tw:TPE15209", d);
+    expect(d.ingest.busEta.mock.calls[0]?.[0]).toEqual([
+      { stopUid: "TPE15209", subRouteUid: "TPE103070", direction: 0 },
+      { stopUid: "TPE15209", subRouteUid: "TPE157462", direction: 1 },
+      { stopUid: "TPE15209", subRouteUid: "TPE99", direction: 0 },
+    ]);
+    // The headway route appears with its live ETA; the route with timetabled trips keeps its row.
+    expect(out?.departures.map((x) => [x.routeId, x.realtime, x.estimated ?? x.scheduled])).toEqual([
+      ["tw:TPE103070_0", "scheduled", "2026-10-12T01:05:00.000Z"],
+      ["tw:TPE157462_1", "live", "2026-10-12T01:05:36.000Z"],
+    ]);
+    expect(out?.departures[1]).toMatchObject({ routeShortName: "307莒光往板橋前站", headsign: "板橋前站" });
   });
 });

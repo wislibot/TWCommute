@@ -29,6 +29,14 @@ describe("live bus overlay", () => {
     expect(out?.legs[busLegIndex]).toMatchObject({ realtime: "live", live: { etaSeconds: 360, source: "tdx-eta" } });
   });
 
+  it("does not show the next bus's ETA on a leg that waits for a later bus", async () => {
+    // The leg boards at 11:10; TDX's next bus is due 10:55, 15 minutes earlier: a different bus.
+    const busEta = vi.fn().mockResolvedValue([{ etaSeconds: 60, asOf: "2026-10-11T10:54:00+08:00", isLastBus: false }]);
+    const [out] = await overlayLiveBus([base], { busEta }, new Date("2026-10-11T10:54:00+08:00"), 45);
+    expect(out?.legs[busLegIndex]?.realtime).toBe("scheduled");
+    expect(out?.legs[busLegIndex]?.live).toBeUndefined();
+  });
+
   it("skips legs far in the future and survives ingest errors", async () => {
     const busEta = vi.fn().mockRejectedValue(new Error("down"));
     const early = await overlayLiveBus([base], { busEta }, new Date("2026-10-11T08:00:00+08:00"), 45);

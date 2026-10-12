@@ -97,8 +97,37 @@ export async function stopDepartures(stopId: string, deps: StopDeps): Promise<De
     if (!firsts.has(key)) firsts.set(key, row);
   }
   const targets = [...firsts.values()];
+
+  // Bus routes at this stop with no listed departure. OTP lists no stop times for trips that run
+  // on headways (frequencies.txt: 219 routes in the TDX feed, e.g. 307莒光 at Taipei Main Station),
+  // although it routes them; for those the live ETA is the departure.
+  const listed = new Set(rows.map((r) => r.dep.routeId));
+  const headway = new Map<
+    string,
+    {
+      route: { gtfsId: string; shortName: string | null; mode: string | null };
+      headsign: string | null;
+      query: EtaQuery;
+    }
+  >();
+  for (const p of stop.patterns ?? []) {
+    if (!p || listed.has(p.route.gtfsId) || !stopUid) continue;
+    const mode = mapMode(p.route.mode);
+    const route = tdxRouteKey(p.route.gtfsId);
+    if ((mode !== "BUS" && mode !== "COACH") || !route) continue;
+    const direction = route.direction ?? p.directionId ?? undefined;
+    const key = `${route.subRouteUid}|${direction ?? ""}`;
+    if (firsts.has(key) || headway.has(key)) continue;
+    headway.set(key, {
+      route: p.route,
+      headsign: p.headsign,
+      query: { stopUid, ...route, ...(direction !== undefined ? { direction } : {}) },
+    });
+  }
+  const headwayRoutes = [...headway.values()];
+
   const results = await lookupEtas(
-    targets.map((t) => t.query as EtaQuery),
+    [...targets.map((t) => t.query as EtaQuery), ...headwayRoutes.map((h) => h.query)],
     deps.ingest,
   );
   for (const [k, row] of targets.entries()) {
@@ -107,10 +136,27 @@ export async function stopDepartures(stopId: string, deps: StopDeps): Promise<De
     row.dep.realtime = "live";
     row.dep.live = { etaSeconds: eta.etaSeconds, asOf: eta.asOf, source: "tdx-eta", isLastBus: eta.isLastBus };
   }
+  const extra: Departure[] = [];
+  for (const [k, h] of headwayRoutes.entries()) {
+    const eta = results[targets.length + k];
+    if (!eta || eta.etaSeconds === null) continue;
+    const due = new Date(Date.parse(eta.asOf) + eta.etaSeconds * 1000).toISOString();
+    extra.push({
+      routeId: h.route.gtfsId,
+      ...(h.route.shortName ? { routeShortName: h.route.shortName } : {}),
+      mode: mapMode(h.route.mode),
+      ...(h.headsign ? { headsign: h.headsign } : {}),
+      // No timetable for headway trips: the predicted time is the only time there is.
+      scheduled: due,
+      estimated: due,
+      realtime: "live",
+      live: { etaSeconds: eta.etaSeconds, asOf: eta.asOf, source: "tdx-eta", isLastBus: eta.isLastBus },
+    });
+  }
 
-  const departures = rows
-    .map((r) => r.dep)
-    .sort((a, b) => Date.parse(a.estimated ?? a.scheduled) - Date.parse(b.estimated ?? b.scheduled));
+  const departures = [...rows.map((r) => r.dep), ...extra].sort(
+    (a, b) => Date.parse(a.estimated ?? a.scheduled) - Date.parse(b.estimated ?? b.scheduled),
+  );
   return {
     stop: {
       id: stop.gtfsId,
