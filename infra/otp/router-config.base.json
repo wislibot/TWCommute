@@ -19,6 +19,9 @@
         "dropOffCost": 60
       }
     },
+    "maxDirectStreetDurationForMode": {
+      "BIKE_RENTAL": "45m"
+    },
     "accessEgress": {
       "maxDuration": "30m",
       "maxDurationForMode": {
