@@ -33,13 +33,10 @@ async function main() {
   await rm(join(otpDir, "gtfs"), { recursive: true, force: true });
   await mkdir(join(otpDir, "gtfs"), { recursive: true });
   for (const f of feeds) {
-    const { data, dropped, deduped, conflicting } = cleanFeed(f.data);
+    const { data, dropped, repairs } = cleanFeed(f.data);
     f.data = data;
     if (dropped.length) console.log(`  ${f.feedId}: dropped ${dropped.join(", ")} (not used by OTP)`);
-    for (const [file, n] of Object.entries(deduped)) {
-      const differing = conflicting[file] ? `, ${conflicting[file]} with different content (kept the first)` : "";
-      console.log(`  ${f.feedId}: removed ${n} duplicate-id rows from ${file}${differing}`);
-    }
+    for (const r of repairs) console.log(`  ${f.feedId}: ${r.file}: ${r.rows} rows with ${r.what}`);
     await writeFile(join(otpDir, "gtfs", f.fileName), f.data);
   }
 

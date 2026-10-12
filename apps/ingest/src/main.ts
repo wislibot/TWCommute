@@ -41,8 +41,7 @@ async function main() {
   const tdx = new TdxClient({
     clientId: config.TDX_CLIENT_ID,
     clientSecret: config.TDX_CLIENT_SECRET,
-    ratePerSecond: config.TDX_RATE_PER_MINUTE / 60,
-    burst: Math.max(1, Math.floor(config.TDX_RATE_PER_MINUTE)),
+    ratePerMinute: config.TDX_RATE_PER_MINUTE,
   });
   const perMinute = estimatedCallsPerMinute(config);
   log.info(

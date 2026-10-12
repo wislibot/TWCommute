@@ -7,10 +7,10 @@ export const TDX_GTFS_BASE = "https://tdx.transportdata.tw/api/gtfs";
 export interface TdxClientOptions {
   clientId: string;
   clientSecret: string;
-  /** Requests per second allowed for this key (depends on the TDX subscription tier). */
-  ratePerSecond?: number;
-  /** Requests that may be sent back-to-back before the rate applies (TDX limits per minute window). */
-  burst?: number;
+  /** Requests per minute allowed for this key (TDX subscription tier; the free plan allows 5). */
+  ratePerMinute?: number;
+  /** The window `ratePerMinute` is enforced over; slightly over a minute leaves a margin. */
+  rateWindowMs?: number;
   maxRetries?: number;
   /** Refresh the token this long before it expires. */
   tokenRefreshMarginMs?: number;
@@ -59,7 +59,7 @@ export class TdxClient {
     }
     this.clock = options.clock ?? systemClock;
     this.fetchImpl = options.fetch ?? fetch;
-    this.limiter = new RateLimiter(options.ratePerSecond ?? 5, options.burst, this.clock);
+    this.limiter = new RateLimiter(options.ratePerMinute ?? 5, options.rateWindowMs ?? 61_000, this.clock);
     this.maxRetries = options.maxRetries ?? 3;
     this.refreshMarginMs = options.tokenRefreshMarginMs ?? 5 * 60_000;
     this.authUrl = options.authUrl ?? TDX_AUTH_URL;
@@ -103,7 +103,12 @@ export class TdxClient {
         this.token = null;
         continue;
       }
-      if ((res.status === 429 || res.status >= 500) && attempt < this.maxRetries) {
+      if (res.status === 429 && attempt < this.maxRetries) {
+        // Over the key's quota: hold every request from this client, not just this one.
+        this.limiter.pause(retryAfterMs(res) ?? backoffMs(attempt));
+        continue;
+      }
+      if (res.status >= 500 && attempt < this.maxRetries) {
         await this.clock.sleep(retryAfterMs(res) ?? backoffMs(attempt));
         continue;
       }

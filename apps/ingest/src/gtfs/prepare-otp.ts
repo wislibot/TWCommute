@@ -1,5 +1,6 @@
 import { strToU8, unzipSync, zipSync } from "fflate";
-import { parseCsv, parseRecord, splitRecords } from "./csv";
+import { parseCsv } from "./csv";
+import { REPAIR_INPUT_FILES, type Repair, repairFeed, repairStopTimes } from "./repair";
 import { basename } from "./zip";
 
 export interface OtpFeed {
@@ -101,87 +102,41 @@ export const OTP_SKIPPED_FILES = [
   "stop_areas.txt",
 ];
 
-/**
- * Files whose rows OTP loads as entities with an id: a repeated id aborts the whole graph build
- * ("DuplicateEntityException"). The TDX national feed repeats some rows verbatim (two
- * levels.txt rows in October 2026), so these are de-duplicated before OTP sees them.
- */
-export const OTP_KEYED_FILES: Record<string, string> = {
-  "agency.txt": "agency_id",
-  "stops.txt": "stop_id",
-  "routes.txt": "route_id",
-  "trips.txt": "trip_id",
-  "calendar.txt": "service_id",
-  "levels.txt": "level_id",
-  "pathways.txt": "pathway_id",
-};
-
-export interface DedupeResult {
-  text: string;
-  /** Rows removed because their id was already seen. */
-  removed: number;
-  /** Removed rows whose content differed from the kept row (the first one wins). */
-  conflicting: number;
-}
-
-/** Drop rows whose `keyColumn` value was already seen, keeping the first. Other rows keep their exact text. */
-export function dedupeById(text: string, keyColumn: string): DedupeResult {
-  const records = splitRecords(text);
-  const header = records[0];
-  if (header === undefined) return { text, removed: 0, conflicting: 0 };
-  const col = parseRecord(header).findIndex((h) => h.trim() === keyColumn);
-  if (col < 0) return { text, removed: 0, conflicting: 0 };
-  const seen = new Map<string, string>();
-  const kept = [header];
-  let removed = 0;
-  let conflicting = 0;
-  for (const record of records.slice(1)) {
-    const id = parseRecord(record)[col] ?? "";
-    const first = seen.get(id);
-    if (first === undefined) {
-      seen.set(id, record);
-      kept.push(record);
-    } else {
-      removed++;
-      if (first !== record) conflicting++;
-    }
-  }
-  if (removed === 0) return { text, removed, conflicting };
-  return { text: `${kept.join("\n")}\n`, removed, conflicting };
-}
-
 export interface CleanFeedResult {
   data: Uint8Array;
   dropped: string[];
-  /** Per keyed file, how many duplicate-id rows were removed. */
-  deduped: Record<string, DedupeResult["removed"]>;
-  conflicting: Record<string, DedupeResult["conflicting"]>;
+  repairs: Repair[];
 }
 
 /**
- * Make a flat GTFS feed safe for OTP: remove the `skip` files and duplicate-id rows. Returns the
- * input unchanged when there is nothing to fix. Only the keyed files are inflated to check them.
+ * Make a flat GTFS feed loadable by OTP: remove the `skip` files and repair data errors that
+ * would abort the graph build (`repairFeed`, `repairStopTimes`). Returns the input unchanged when
+ * there is nothing to fix.
  */
 export function cleanFeed(data: Uint8Array, skip: string[] = OTP_SKIPPED_FILES): CleanFeedResult {
   const dropped = listZip(data).filter((n) => skip.includes(basename(n).toLowerCase()));
-  const keyedOf = (name: string) => OTP_KEYED_FILES[basename(name).toLowerCase()];
-  const keyed = unzipSync(data, { filter: (f) => !f.name.endsWith("/") && keyedOf(f.name) !== undefined });
-  const fixed: Record<string, Uint8Array> = {};
-  const deduped: Record<string, number> = {};
-  const conflicting: Record<string, number> = {};
+  const isInput = (name: string) => REPAIR_INPUT_FILES.includes(basename(name).toLowerCase());
+  const small = unzipSync(data, { filter: (f) => !f.name.endsWith("/") && isInput(f.name) });
   const decoder = new TextDecoder();
-  for (const [name, bytes] of Object.entries(keyed)) {
-    const result = dedupeById(decoder.decode(bytes), keyedOf(name) as string);
-    if (result.removed === 0) continue;
-    fixed[name] = strToU8(result.text);
-    deduped[basename(name)] = result.removed;
-    if (result.conflicting) conflicting[basename(name)] = result.conflicting;
+  const pathOf = new Map(Object.keys(small).map((path) => [basename(path).toLowerCase(), path]));
+  const { changed, removedTrips, repairs } = repairFeed(
+    new Map(Object.entries(small).map(([path, bytes]) => [basename(path).toLowerCase(), decoder.decode(bytes)])),
+  );
+  const fixed: Record<string, Uint8Array> = {};
+  for (const [file, text] of changed) fixed[pathOf.get(file) as string] = strToU8(text);
+  const stopTimesPath = listZip(data).find((n) => basename(n).toLowerCase() === "stop_times.txt");
+  if (stopTimesPath) {
+    const raw = unzipSync(data, { filter: (f) => f.name === stopTimesPath })[stopTimesPath] as Uint8Array;
+    const st = repairStopTimes(raw, removedTrips);
+    if (st.data !== raw) fixed[stopTimesPath] = st.data;
+    repairs.push(...st.repairs);
   }
-  if (dropped.length === 0 && Object.keys(fixed).length === 0) return { data, dropped, deduped, conflicting };
+  if (dropped.length === 0 && Object.keys(fixed).length === 0) return { data, dropped, repairs };
+
   const kept = unzipSync(data, {
     filter: (f) => !f.name.endsWith("/") && !skip.includes(basename(f.name).toLowerCase()) && !(f.name in fixed),
   });
-  return { data: zipSync({ ...kept, ...fixed }, { level: 1 }), dropped, deduped, conflicting };
+  return { data: zipSync({ ...kept, ...fixed }, { level: 1 }), dropped, repairs };
 }
 
 export interface ConfigTemplates {

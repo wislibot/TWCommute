@@ -15,7 +15,7 @@ async function main() {
     process.exit(1);
   }
   const paths = gtfsPaths(process.env.DATA_DIR ?? "./data");
-  const tdx = new TdxClient({ clientId, clientSecret, ratePerSecond: 5 / 60, burst: 5 });
+  const tdx = new TdxClient({ clientId, clientSecret, ratePerMinute: 5 });
   await downloadGtfs(tdx, paths, console.log);
   console.log(`Manifest written to ${paths.manifest}`);
 }

@@ -24,7 +24,7 @@ const EnvSchema = z.object({
    * Requests/minute allowed for the TDX key. The free member plan allows 5/minute (measured in
    * Phase 0 from TDX's ratelimit-limit headers); polling all cities needs a paid plan.
    */
-  TDX_RATE_PER_MINUTE: z.coerce.number().positive().default(5),
+  TDX_RATE_PER_MINUTE: z.coerce.number().int().positive().default(5),
   HOST: z.string().default("0.0.0.0"),
   PORT: z.coerce.number().int().default(8081),
   /** Base URL other services (OTP) use to reach this service; used inside gbfs.json. */

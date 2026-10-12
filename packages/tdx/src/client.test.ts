@@ -28,7 +28,7 @@ describe("TdxClient", () => {
 
   it("shares a single in-flight token request between concurrent calls", async () => {
     const { fetch, calls } = stubFetch((url) => (url === TDX_AUTH_URL ? tokenResponse() : json([])));
-    const client = new TdxClient({ ...creds, fetch, clock: new FakeClock(), ratePerSecond: 100 });
+    const client = new TdxClient({ ...creds, fetch, clock: new FakeClock(), ratePerMinute: 6000 });
     await Promise.all([client.getJson("/a"), client.getJson("/b"), client.getJson("/c")]);
     expect(calls.filter((c) => c.url === TDX_AUTH_URL)).toHaveLength(1);
   });
@@ -58,7 +58,7 @@ describe("TdxClient", () => {
     expect(n).toBe(2);
   });
 
-  it("retries 429 using Retry-After, then succeeds", async () => {
+  it("pauses for Retry-After on 429, then succeeds", async () => {
     const clock = new FakeClock();
     let dataCalls = 0;
     const { fetch } = stubFetch((url) => {

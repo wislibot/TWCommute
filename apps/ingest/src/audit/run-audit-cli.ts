@@ -59,8 +59,7 @@ async function main() {
   const tdx = new TdxClient({
     clientId,
     clientSecret,
-    ratePerSecond: Number(process.env.AUDIT_RATE_PER_MINUTE ?? 5) / 60,
-    burst: Math.max(1, Math.floor(Number(process.env.AUDIT_RATE_PER_MINUTE ?? 5))),
+    ratePerMinute: Math.max(1, Math.floor(Number(process.env.AUDIT_RATE_PER_MINUTE ?? 5))),
     onResponse: ({ status, headers }) => {
       usage.calls++;
       usage.byStatus[status] = (usage.byStatus[status] ?? 0) + 1;

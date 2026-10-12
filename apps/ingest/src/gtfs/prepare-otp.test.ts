@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { strToU8, unzipSync, zipSync } from "fflate";
 import { describe, expect, it } from "vitest";
-import { cleanFeed, dedupeById, feedIdFromName, renderOtpConfigs, splitBundle } from "./prepare-otp";
+import { cleanFeed, feedIdFromName, renderOtpConfigs, splitBundle } from "./prepare-otp";
 
 const traAgency = strToU8("agency_id,agency_name\nTRA,臺鐵\n");
 const busAgency = strToU8("agency_id,agency_name\nTPE,臺北市公車\n");
@@ -90,32 +90,33 @@ describe("cleanFeed", () => {
     expect(cleanFeed(feed).data).toBe(feed);
   });
 
-  it("removes repeated level rows that would abort the OTP build (TDX national feed)", () => {
-    // Real rows from the October 2026 TDX feed: 573904/573905 appear twice in levels.txt.
-    const levels =
-      "\uFEFFlevel_id,level_index,level_name\n573904,-2,第一月台\n573905,-2,第二月台\n573904,-2,第一月台\n";
-    const stopTimes = strToU8("trip_id,stop_id\nT1,S1\n");
-    const feed = zipSync({ "levels.txt": strToU8(levels), "stop_times.txt": stopTimes });
-    const { data, deduped, conflicting } = cleanFeed(feed);
-    expect(deduped).toEqual({ "levels.txt": 1 });
-    expect(conflicting).toEqual({});
+  it("repairs the TDX national feed's data errors, including stop_times of removed trips", () => {
+    const enc = (t: string) => strToU8(t);
+    const feed = zipSync({
+      "levels.txt": enc("\uFEFFlevel_id,level_index,level_name\n573904,-2,第一月台\n573904,-2,第一月台\n"),
+      "stops.txt": enc("stop_id,stop_name,level_id\nS1,A,573904\nS2,B,573819\n"),
+      "routes.txt": enc("route_id,route_type\nR1,3\n"),
+      "trips.txt": enc("route_id,service_id,trip_id\nR1,D,T1\nSHIP_NewTaipei_HalohaR101_0,D,T2\n"),
+      "stop_times.txt": enc(
+        "trip_id,departure_time,stop_id,stop_sequence\r\nT1,15:15,S1,1\r\nT2,08:00:00,S1,1\r\nT2,08:05:00,S2,2\r\nT1,15:20:00,S2,2\r\n",
+      ),
+      "fare_leg_rules.txt": enc("x\n"),
+    });
+    const { data, dropped, repairs } = cleanFeed(feed);
+    expect(dropped).toEqual(["fare_leg_rules.txt"]);
+    expect(repairs.map((r) => `${r.file}:${r.rows}`)).toEqual([
+      "levels.txt:1",
+      "stops.txt:1",
+      "trips.txt:1",
+      "stop_times.txt:2",
+      "stop_times.txt:1",
+    ]);
     const files = unzipSync(data);
-    expect(new TextDecoder().decode(files["levels.txt"])).toBe(
-      "level_id,level_index,level_name\n573904,-2,第一月台\n573905,-2,第二月台\n",
+    const text = (name: string) => new TextDecoder().decode(files[name]);
+    expect(text("stops.txt")).toBe("stop_id,stop_name,level_id\nS1,A,573904\nS2,B,\n");
+    expect(text("stop_times.txt")).toBe(
+      "trip_id,departure_time,stop_id,stop_sequence\r\nT1,15:15:00,S1,1\r\nT1,15:20:00,S2,2\r\n",
     );
-    expect(files["stop_times.txt"]).toEqual(stopTimes);
-  });
-});
-
-describe("dedupeById", () => {
-  it("keeps the first row and reports conflicting duplicates", () => {
-    const r = dedupeById('stop_name,stop_id\r\n"A, north",1\r\nB,2\r\n"A\nsouth",1\r\n', "stop_id");
-    expect(r).toEqual({ text: 'stop_name,stop_id\n"A, north",1\nB,2\n', removed: 1, conflicting: 1 });
-  });
-
-  it("leaves text untouched without duplicates or without the key column", () => {
-    const text = "stop_id,stop_name\r\n1,A\r\n";
-    expect(dedupeById(text, "stop_id").text).toBe(text);
-    expect(dedupeById("x\n1\n1\n", "stop_id").removed).toBe(0);
+    expect(Object.keys(files).sort()).toEqual(["levels.txt", "routes.txt", "stop_times.txt", "stops.txt", "trips.txt"]);
   });
 });

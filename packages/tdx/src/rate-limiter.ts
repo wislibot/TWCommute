@@ -9,22 +9,25 @@ export const systemClock: Clock = {
 };
 
 /**
- * Token-bucket limiter. TDX enforces a per-API-key request rate that depends on the
- * subscription tier, so every request from this process goes through one limiter.
+ * TDX counts requests per API key per minute (the free plan allows 5; response headers
+ * `x-ratelimit-limit-minute`). A token bucket with a burst can exceed that: 5 at once, then
+ * refills, gives 9 requests in the first minute. This limiter allows at most `limit` requests in
+ * any `windowMs` (61 s by default, a second of margin for clock and network skew), whichever way
+ * TDX aligns its minute. Every request from a process goes through one limiter.
  */
 export class RateLimiter {
-  private tokens: number;
-  private lastRefill: number;
+  /** Grant times of the most recent requests, oldest first (at most `limit`). */
+  private grants: number[] = [];
+  private pausedUntil = 0;
   private queue: Promise<void> = Promise.resolve();
 
   constructor(
-    private readonly ratePerSecond: number,
-    private readonly burst: number = Math.max(1, Math.floor(ratePerSecond)),
+    private readonly limit: number,
+    private readonly windowMs: number = 61_000,
     private readonly clock: Clock = systemClock,
   ) {
-    if (ratePerSecond <= 0) throw new Error("ratePerSecond must be > 0");
-    this.tokens = burst;
-    this.lastRefill = clock.now();
+    if (!Number.isInteger(limit) || limit < 1) throw new Error("limit must be a positive integer");
+    if (windowMs <= 0) throw new Error("windowMs must be > 0");
   }
 
   /** Resolves when the caller may send one request. Callers are served in FIFO order. */
@@ -34,20 +37,24 @@ export class RateLimiter {
     return next;
   }
 
-  private refill(): void {
-    const now = this.clock.now();
-    const elapsed = (now - this.lastRefill) / 1000;
-    this.tokens = Math.min(this.burst, this.tokens + elapsed * this.ratePerSecond);
-    this.lastRefill = now;
+  /** Hold every request for `ms` (e.g. TDX answered 429 with Retry-After). */
+  pause(ms: number): void {
+    this.pausedUntil = Math.max(this.pausedUntil, this.clock.now() + ms);
   }
 
   private async take(): Promise<void> {
-    this.refill();
-    while (this.tokens < 1) {
-      const waitMs = Math.ceil(((1 - this.tokens) / this.ratePerSecond) * 1000);
-      await this.clock.sleep(waitMs);
-      this.refill();
+    for (;;) {
+      const now = this.clock.now();
+      if (now < this.pausedUntil) {
+        await this.clock.sleep(this.pausedUntil - now);
+        continue;
+      }
+      while (this.grants.length > 0 && (this.grants[0] as number) <= now - this.windowMs) this.grants.shift();
+      if (this.grants.length < this.limit) {
+        this.grants.push(now);
+        return;
+      }
+      await this.clock.sleep((this.grants[0] as number) + this.windowMs - now);
     }
-    this.tokens -= 1;
   }
 }
