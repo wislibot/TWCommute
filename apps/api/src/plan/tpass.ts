@@ -28,10 +28,15 @@ function metroCity(leg: Leg): City | null {
   return null;
 }
 
+/**
+ * The TDX national feed names HSR 臺灣高速鐵路股份有限公司 (no "高鐵") and uses station pairs
+ * (左營-南港) as long names, so its route ids (`tw:THSR_0108_1`) are the reliable marker there.
+ */
 function isThsr(leg: Leg): boolean {
+  if (localId(leg.route?.id)?.startsWith("THSR_")) return true;
   const text =
     `${feedId(leg.route?.id) ?? ""} ${leg.route?.agencyName ?? ""} ${leg.route?.longName ?? ""}`.toLowerCase();
-  return /thsr|高鐵|high speed/.test(text);
+  return /thsr|高鐵|高速鐵路|high speed/.test(text);
 }
 
 /** Describe a leg for the TPASS evaluator; unknown cities stay null (→ "may be covered"). */

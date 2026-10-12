@@ -1,4 +1,4 @@
-import type { BikeStation } from "@twc/contracts";
+import type { BikeStation, Leg, RouteInfo } from "@twc/contracts";
 import { describe, expect, it, vi } from "vitest";
 import { itineraryWithVia } from "../otp/fixtures";
 import { addDockRisk, assessDockRisk } from "./dock-risk";
@@ -101,5 +101,35 @@ describe("TPASS coverage", () => {
   it("marks the whole trip as covered by 基北北桃", () => {
     expect(addTpassCoverage([base], "kpntp")[0]?.tpass).toEqual({ passId: "kpntp", coverage: "covered" });
     expect(addTpassCoverage([base], undefined)[0]?.tpass).toBeUndefined();
+  });
+
+  // Route rows as the TDX national GTFS has them (routes.txt + agency.txt).
+  const rail = (route: RouteInfo): Leg => ({ ...legAt(1), mode: "RAIL", route });
+  const coverageOf = (leg: Leg, passId: string) =>
+    addTpassCoverage([{ ...base, legs: [leg] }], passId)[0]?.tpass?.coverage;
+
+  it("recognises high-speed rail in the TDX feed and never covers it", () => {
+    const hsr = rail({ id: "tw:THSR_0108_1", agencyName: "臺灣高速鐵路股份有限公司", longName: "左營-南港" });
+    expect(toFareLeg(hsr)).toEqual({ tpassMode: "thsr", fromCity: null, toCity: null });
+    expect(coverageOf(hsr, "tchhm")).toBe("not_covered");
+    expect(toFareLeg(rail({ id: "tw:THSR_0108_1" })).tpassMode).toBe("thsr");
+    expect(toFareLeg(rail({ id: "other:0108", agencyName: "臺灣高速鐵路股份有限公司" })).tpassMode).toBe("thsr");
+  });
+
+  it("keeps TRA trains as local trains", () => {
+    const tra = rail({ id: "tw:TRA_1004_0_1132", agencyName: "交通部臺灣鐵路管理局", longName: "埔心-七堵" });
+    expect(toFareLeg(tra)).toEqual({ tpassMode: "tra_local", fromCity: null, toCity: null });
+  });
+
+  it("covers a Hsinchu City to Hsinchu County bus with 桃竹竹苗", () => {
+    const bus = legAt(busLegIndex);
+    const hsinchuBus: Leg = {
+      ...bus,
+      from: { ...bus.from, stopId: "tw:HSZ291307" },
+      to: { ...bus.to, stopId: "tw:HSQ296110" },
+    };
+    expect(toFareLeg(hsinchuBus)).toEqual({ tpassMode: "city_bus", fromCity: "Hsinchu", toCity: "HsinchuCounty" });
+    expect(coverageOf(hsinchuBus, "tchhm")).toBe("covered");
+    expect(coverageOf(hsinchuBus, "kpntp")).toBe("not_covered");
   });
 });
