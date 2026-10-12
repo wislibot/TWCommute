@@ -4,8 +4,8 @@ import { editRecords, quote } from "./csv-bytes";
 /**
  * Repairs for GTFS problems that make OTP abort the whole graph build. All were found in the TDX
  * national feed (October 2026, see docs/DATA.md): repeated ids, stops on levels that levels.txt
- * lacks, trips of routes that routes.txt lacks, pathways between stops that do not exist or to a
- * station, and HH:MM times; plus one service_id per calendar, without which OTP's build stalls.
+ * lacks, trips of routes that routes.txt lacks, pathways between stops that do not exist, to a
+ * station or from a stop to itself, and HH:MM times; plus one service_id per calendar, without which OTP's build stalls.
  * Each repair is the smallest change that keeps the rest of the data: clear an optional
  * reference, or drop the rows that cannot be loaded.
  */
@@ -190,6 +190,19 @@ export function repairFeed(files: Map<string, string>): RepairResult {
         what: "station endpoint: removed",
       });
       pathways.records = kept;
+    }
+    // A pathway from a stop to itself goes nowhere. For an elevator OTP gives both ends the same
+    // vertex label, and the saved graph then fails to load (NullPointerException in
+    // SerializedGraphObject.reconstructEdgeLists).
+    const [from, to] = ends as [number, number];
+    if (from >= 0 && to >= 0) {
+      const before = pathways.records.length;
+      pathways.records = pathways.records.filter((r) => {
+        const fields = parseRecord(r);
+        return fields[from] !== fields[to];
+      });
+      const loops = before - pathways.records.length;
+      if (loops) repairs.push({ file: "pathways.txt", rows: loops, what: "from and to the same stop: removed" });
     }
     mark("pathways.txt", pathways.records.length !== before);
   }

@@ -83,7 +83,7 @@ Audited Taipei, New Taipei, Taichung, Kaohsiung and intercity buses; raw report 
 
 ### Graph build — 2026-10-12 (full Taiwan, OTP 2.10, 12 GB heap)
 
-**GTFS data errors.** OTP stops the whole build on the first bad row, and the TDX national feed had six kinds of them (the TRTC feed had none), plus one shape OTP cannot build in reasonable time. `prepare-otp` now repairs them and logs each repair (`apps/ingest/src/gtfs/repair.ts`):
+**GTFS data errors.** OTP stops the whole build on the first bad row, and the TDX national feed had seven kinds of them (the TRTC feed had none), plus one shape OTP cannot build in reasonable time. `prepare-otp` now repairs them and logs each repair (`apps/ingest/src/gtfs/repair.ts`):
 
 | Problem in the TDX feed (2026-10-11 download) | Rows | OTP without the repair | Repair |
 | --- | --- | --- | --- |
@@ -91,6 +91,7 @@ Audited Taipei, New Taipei, Taichung, Kaohsiung and intercity buses; raw report 
 | `stops.txt` `level_id` not in `levels.txt` (e.g. 573819) | 90 | `EntityReferenceNotFoundException` | clear `level_id` |
 | `pathways.txt` from/to a stop that does not exist (e.g. 541831009) | 89 | reference error | remove the pathway |
 | `pathways.txt` 6670 starts at a station (`location_type` 1), which GTFS forbids | 1 | `NullPointerException` in `PathwayMapper` | remove the pathway |
+| `pathways.txt` from a stop to itself (e.g. elevator 7156 at stop 508639013) | 5 | the build succeeds, but both ends of the elevator get the same vertex label and the saved graph fails to load (`NullPointerException` in `SerializedGraphObject.reconstructEdgeLists`) | remove the pathway |
 | `trips.txt` on routes missing from `routes.txt` (`SHIP_NewTaipei_HalohaR101_0/1`) | 4 trips, 8 stop times | reference error | remove the trips and their stop times |
 | `stop_times.txt` Matsu buses with `departure_time` `15:15` instead of `15:15:00` (one-stop trips) | 104 | time parse error | complete to `HH:MM:00` |
 | A `service_id` per trip: 187,930 ids for only 445 distinct calendars | 187,485 merged | not an error, but OTP 2.10 copies its service map for each id (`TripCalendars.withServiceCode`); the build sat there for 20+ minutes without finishing | give ids with identical `calendar.txt` and `calendar_dates.txt` rows one id (each trip keeps its dates) |

@@ -39,7 +39,8 @@ describe("repairFeed", () => {
     const { changed, removedTrips, repairs } = repairFeed(
       feed({
         "stops.txt": "stop_id,location_type,parent_station\nST,1,\nS1,3,ST\nS2,2,ST\n",
-        "pathways.txt": "pathway_id,from_stop_id,to_stop_id\nW1,S1,S2\nW2,S1,541831009\nW3,541831009,S2\n6670,ST,S1\n",
+        "pathways.txt":
+          "pathway_id,from_stop_id,to_stop_id\nW1,S1,S2\nW2,S1,541831009\nW3,541831009,S2\n6670,ST,S1\n7156,S2,S2\n",
         "routes.txt": "route_id\nR1\n",
         "trips.txt": "route_id,service_id,trip_id\nR1,D,T1\nSHIP_NewTaipei_HalohaR101_0,D,T2\n",
         "frequencies.txt":
@@ -53,6 +54,7 @@ describe("repairFeed", () => {
     expect(repairs.map((r) => [r.file, r.rows, r.what])).toEqual([
       ["pathways.txt", 2, "from_stop_id/to_stop_id not found: removed"],
       ["pathways.txt", 1, "station endpoint: removed"],
+      ["pathways.txt", 1, "from and to the same stop: removed"],
       ["trips.txt", 1, "route_id not found: removed"],
       ["frequencies.txt", 1, "trip removed: removed"],
     ]);
