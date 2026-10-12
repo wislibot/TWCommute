@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildUrl, TDX_AUTH_URL, TdxClient, TdxError } from "./client";
-import { getBusEta } from "./endpoints";
+import { getBusEta, routeUidFilter } from "./endpoints";
 import { FakeClock, json, stubFetch } from "./test-utils";
 
 const creds = { clientId: "id", clientSecret: "secret" };
@@ -106,6 +106,21 @@ describe("endpoints", () => {
     const url = new URL(calls[1]?.url ?? "");
     expect(url.pathname).toBe("/api/basic/v2/Bus/EstimatedTimeOfArrival/InterCity");
     expect(url.searchParams.get("$select")).toContain("EstimateTime");
+    expect(url.searchParams.has("$filter")).toBe(false);
+  });
+
+  it("filters bus ETAs by route", async () => {
+    const { fetch, calls } = stubFetch((url) => (url === TDX_AUTH_URL ? tokenResponse() : json([])));
+    const client = new TdxClient({ ...creds, fetch, clock: new FakeClock() });
+    await getBusEta(client, "InterCity", ["THB5608", "THB9003"]);
+    // TDX accepts this encoding (spaces as '+'; checked live in Oct 2026).
+    expect(calls[1]?.url).toContain("&%24filter=RouteUID+eq+%27THB5608%27+or+RouteUID+eq+%27THB9003%27");
+    await getBusEta(client, "InterCity", []);
+    expect(calls[2]?.url).not.toContain("filter");
+  });
+
+  it("rejects RouteUIDs that would need quoting in $filter", () => {
+    expect(() => routeUidFilter(["THB5608", "x' or 1 eq 1"])).toThrow(/Invalid RouteUIDs: x' or 1 eq 1/);
   });
 });
 

@@ -1,4 +1,4 @@
-import { BIKE_CITIES, type BikeCity, BUS_CITIES, type BusCity } from "@twc/tdx";
+import { BIKE_CITIES, type BikeCity, BUS_CITIES, type BusCity, ROUTE_UID_PATTERN } from "@twc/tdx";
 import { z } from "zod";
 
 function cityList<T extends string>(all: readonly T[], fallback: string) {
@@ -14,6 +14,21 @@ function cityList<T extends string>(all: readonly T[], fallback: string) {
       return items as T[];
     });
 }
+
+/** "auto", or a comma list of TDX RouteUIDs; "" (an empty list) means every route. */
+const routeList = z
+  .string()
+  .default("")
+  .transform((raw, ctx): string[] | "auto" => {
+    if (raw.trim().toLowerCase() === "auto") return "auto";
+    const ids = raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const invalid = ids.filter((id) => !ROUTE_UID_PATTERN.test(id));
+    if (invalid.length) ctx.addIssue({ code: "custom", message: `Invalid RouteUIDs: ${invalid.join(", ")}` });
+    return ids;
+  });
 
 const seconds = (def: number) => z.coerce.number().int().positive().default(def);
 
@@ -37,7 +52,7 @@ const EnvSchema = z.object({
    * A regional setup points this at the trimmed feed OTP uses, which needs far less memory.
    */
   GTFS_INDEX_PATH: z.string().optional(),
-  // Defaults fit the free TDX plan (5 requests/minute): one city, polled about 2.5 times a minute.
+  // Defaults fit the free TDX plan (5 requests/minute): one city, about 2 requests a minute in all.
   // Production (all cities, 30-60 s freshness) needs ~60 requests/minute; see docs/DATA.md.
   BIKE_CITIES: cityList<BikeCity>(BIKE_CITIES, "Taipei"),
   BUS_CITIES: cityList<BusCity>(BUS_CITIES, "Taipei"),
@@ -46,6 +61,12 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((v) => v === "true"),
+  /**
+   * Which intercity routes to poll ETAs for: "" the whole national feed; "auto" those in the GTFS
+   * index (GTFS_INDEX_PATH, a region's trimmed feed), so a region downloads only its few dozen
+   * routes; or a comma list of RouteUIDs (THB5608,THB9003). Still one request per poll.
+   */
+  BUS_INTERCITY_ROUTES: routeList,
   BIKE_AVAILABILITY_INTERVAL_S: seconds(120),
   BIKE_STATIONS_INTERVAL_S: seconds(6 * 3600),
   BUS_ETA_INTERVAL_S: seconds(60),

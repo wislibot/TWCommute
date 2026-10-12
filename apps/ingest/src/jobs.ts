@@ -11,6 +11,7 @@ import {
 import type { BikeStore } from "./bike/store";
 import type { BusEtaStore } from "./bus/eta-store";
 import type { Config } from "./config";
+import { type BusStopRoutes, intercityRouteUids } from "./gtfs/indexes";
 import type { TraIndex } from "./gtfs/tra-index";
 import type { Job, Logger } from "./lib/scheduler";
 import { buildTraTripUpdates } from "./rail/tra-trip-updates";
@@ -26,12 +27,38 @@ export interface State {
 /** Route lists change rarely; refresh twice a day (1 request per city per 12 h). */
 const BUS_ROUTES_INTERVAL_MS = 12 * 3600_000;
 
-/** All polling jobs, with start offsets so cities are spread across the interval. */
+/**
+ * RouteUIDs to poll InterCity ETAs for; undefined polls the whole national feed. "auto" takes the
+ * intercity routes of the loaded GTFS index (`busStopRoutes`, null when none was loaded), and falls
+ * back to the whole feed, with a warning, when that gives none or too many for one request.
+ */
+export function resolveIntercityRoutes(
+  setting: Config["BUS_INTERCITY_ROUTES"],
+  busStopRoutes: BusStopRoutes | null,
+  log: Logger,
+): readonly string[] | undefined {
+  if (setting !== "auto") return setting.length > 0 ? setting : undefined;
+  const routes = busStopRoutes ? intercityRouteUids(busStopRoutes) : null;
+  if (routes?.length) return routes;
+  const reason = !busStopRoutes
+    ? "no GTFS index loaded"
+    : routes
+      ? "no intercity routes in the GTFS index"
+      : "too many intercity routes for one request";
+  log.warn({ reason }, "BUS_INTERCITY_ROUTES=auto: polling the whole InterCity ETA feed");
+  return undefined;
+}
+
+/**
+ * All polling jobs, with start offsets so cities are spread across the interval. `intercityRoutes`
+ * (see `resolveIntercityRoutes`) narrows the InterCity ETA polls; route lists stay national.
+ */
 export function buildJobs(
   config: Config,
   tdx: TdxClient,
   state: State,
   log: Logger,
+  intercityRoutes?: readonly string[],
 ): Array<{ job: Job; delayMs: number }> {
   const jobs: Array<{ job: Job; delayMs: number }> = [];
   const spread = (i: number, n: number, intervalMs: number) => Math.floor((i / Math.max(1, n)) * intervalMs);
@@ -79,7 +106,7 @@ export function buildJobs(
         name: `bus-eta:${feed}`,
         intervalMs: busMs,
         run: async () => {
-          state.busEta.replace(feed, await getBusEta(tdx, feed));
+          state.busEta.replace(feed, await getBusEta(tdx, feed, feed === "InterCity" ? intercityRoutes : undefined));
         },
       },
     });

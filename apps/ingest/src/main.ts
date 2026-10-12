@@ -3,9 +3,9 @@ import { BikeStore } from "./bike/store";
 import { BusEtaStore } from "./bus/eta-store";
 import { estimatedCallsPerMinute, loadConfig } from "./config";
 import { gtfsPaths, readIfExists } from "./gtfs/files";
-import { loadGtfsIndexes } from "./gtfs/indexes";
+import { type BusStopRoutes, loadGtfsIndexes } from "./gtfs/indexes";
 import { emptyTraIndex } from "./gtfs/tra-index";
-import { buildJobs, type State } from "./jobs";
+import { buildJobs, resolveIntercityRoutes, type State } from "./jobs";
 import { HealthRegistry } from "./lib/health";
 import { Scheduler } from "./lib/scheduler";
 import { createServer } from "./server";
@@ -29,10 +29,12 @@ async function main() {
   const log = app.log;
 
   const national = await readIfExists(config.GTFS_INDEX_PATH ?? gtfsPaths(config.DATA_DIR).national);
+  let busStopRoutes: BusStopRoutes | null = null;
   if (national) {
     const indexes = loadGtfsIndexes(national.data);
     state.traIndex = indexes.tra;
     state.busEta.setStopRoutes(indexes.busStopRoutes);
+    busStopRoutes = indexes.busStopRoutes;
     log.info(
       {
         trains: state.traIndex.tripIdsByTrainNo.size,
@@ -63,8 +65,14 @@ async function main() {
     );
   }
 
+  let intercityRoutes: readonly string[] | undefined;
+  if (config.BUS_INTERCITY) {
+    intercityRoutes = resolveIntercityRoutes(config.BUS_INTERCITY_ROUTES, busStopRoutes, log);
+    log.info({ routes: intercityRoutes?.length ?? "all" }, "InterCity ETA routes to poll");
+  }
+
   const scheduler = new Scheduler(health, log);
-  for (const { job, delayMs } of buildJobs(config, tdx, state, log)) scheduler.add(job, delayMs);
+  for (const { job, delayMs } of buildJobs(config, tdx, state, log, intercityRoutes)) scheduler.add(job, delayMs);
 
   const shutdown = async () => {
     scheduler.stop();

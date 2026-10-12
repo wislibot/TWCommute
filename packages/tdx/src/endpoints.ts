@@ -81,11 +81,30 @@ export function getBikeAvailability(client: TdxClient, city: BikeCity): Promise<
   return client.getJson(`/v2/Bike/Availability/City/${city}`);
 }
 
-/** Batch ETA for a whole city (or all intercity buses). `$select` keeps the payload small. */
-export function getBusEta(client: TdxClient, city: BusCity | "InterCity"): Promise<TdxBusEta[]> {
+/** TDX RouteUIDs (e.g. THB5608): checked before they go into a `$filter`, so nothing needs quoting. */
+export const ROUTE_UID_PATTERN = /^[A-Z0-9]+$/;
+
+/** OData `$filter` for these routes: `RouteUID eq 'THB5608' or RouteUID eq 'THB9003'`. */
+export function routeUidFilter(routeUids: readonly string[]): string {
+  const invalid = routeUids.filter((id) => !ROUTE_UID_PATTERN.test(id));
+  if (invalid.length) throw new Error(`Invalid RouteUIDs: ${invalid.join(", ")}`);
+  return routeUids.map((id) => `RouteUID eq '${id}'`).join(" or ");
+}
+
+/**
+ * Batch ETA for a whole city (or all intercity buses). `$select` keeps the payload small;
+ * `routeUids` keeps only those routes (a region needs a few dozen of the national InterCity
+ * feed's). Without it, or with an empty list, the whole feed is returned.
+ */
+export function getBusEta(
+  client: TdxClient,
+  city: BusCity | "InterCity",
+  routeUids?: readonly string[],
+): Promise<TdxBusEta[]> {
   const path =
     city === "InterCity" ? "/v2/Bus/EstimatedTimeOfArrival/InterCity" : `/v2/Bus/EstimatedTimeOfArrival/City/${city}`;
-  return client.getJson(path, { $select: BUS_ETA_FIELDS });
+  const $filter = routeUids?.length ? routeUidFilter(routeUids) : undefined;
+  return client.getJson(path, { $select: BUS_ETA_FIELDS, $filter });
 }
 
 export function getBusStops(client: TdxClient, city: BusCity | "InterCity"): Promise<TdxBusStop[]> {

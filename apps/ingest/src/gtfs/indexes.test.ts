@@ -1,6 +1,6 @@
 import { strToU8, zipSync } from "fflate";
 import { describe, expect, it } from "vitest";
-import { buildBusStopRoutes, loadGtfsIndexes } from "./indexes";
+import { type BusStopRoutes, buildBusStopRoutes, intercityRouteUids, loadGtfsIndexes } from "./indexes";
 
 const files = {
   agency: "agency_id,agency_name\nTPE,臺北市公車\nTRA,臺鐵\n",
@@ -37,5 +37,40 @@ describe("bus stop index", () => {
     expect(tra.tripIdsByTrainNo.get("1004")).toEqual(["TRA_1004_0_1132_20261012_102700"]);
     expect(tra.stopsByTripId.get("TRA_1004_0_1132_20261012_102700")).toHaveLength(1);
     expect(busStopRoutes.size).toBe(2);
+  });
+});
+
+describe("intercity routes", () => {
+  const at = { first: 1, last: 1 };
+  /** One stop served by sub-routes `THB<n>01` of routes THB5000, THB5001… */
+  const routes = (n: number): BusStopRoutes =>
+    new Map([["S", new Map(Array.from({ length: n }, (_, i) => [`THB${5000 + i}01|0`, at]))]]);
+
+  it("lists the RouteUIDs of the intercity sub-routes at the stops, once each and sorted", () => {
+    const idx: BusStopRoutes = new Map([
+      [
+        "A",
+        new Map([
+          ["THB900301|0", at],
+          ["TPE10811|0", at],
+        ]),
+      ],
+      [
+        "B",
+        new Map([
+          ["THB560801|0", at],
+          ["THB560802|1", at],
+          ["THB5606A1|0", at],
+        ]),
+      ],
+    ]);
+    expect(intercityRouteUids(idx)).toEqual(["THB5606", "THB5608", "THB9003"]);
+    expect(intercityRouteUids(new Map([["A", new Map([["TPE10811|0", at]])]]))).toEqual([]);
+  });
+
+  it("gives up when the route filter would make the request URL too long", () => {
+    // Hsinchu's trimmed feed has 41 intercity routes; Greater Taipei's has 111.
+    expect(intercityRouteUids(routes(41))).toHaveLength(41);
+    expect(intercityRouteUids(routes(111))).toBeNull();
   });
 });

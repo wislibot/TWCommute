@@ -1,3 +1,4 @@
+import { routeUidFilter } from "@twc/tdx";
 import { parseCsv } from "./csv";
 import { editRecords } from "./csv-bytes";
 import { buildTraIndex, emptyTraIndex, readTraStopPatterns, type TraIndex } from "./tra-index";
@@ -63,6 +64,32 @@ export function buildBusStopRoutes(files: { routes?: string; trips?: string }, s
     return undefined;
   });
   return out;
+}
+
+/** An intercity (公路客運) sub-route key: its RouteUID (THB5608) plus 2 characters, then `|<Direction>`. */
+const INTERCITY_SUB_ROUTE = /^(THB[A-Z0-9]+)[A-Z0-9]{2}\|/;
+
+/**
+ * Longest `$filter` query parameter (as the TDX client encodes it) to send: about 61 routes. TDX
+ * answered that many correctly (a 2,019-character URL, Oct 2026); with more, poll the whole feed.
+ */
+export const MAX_ROUTE_FILTER_CHARS = 1_800;
+
+/**
+ * Intercity RouteUIDs serving the stops in the index (sub-route THB560801 → route THB5608), sorted,
+ * to poll ETAs for only those routes. Null when the `$filter` would make the request URL too long.
+ */
+export function intercityRouteUids(busStopRoutes: BusStopRoutes): string[] | null {
+  const routes = new Set<string>();
+  for (const variants of busStopRoutes.values()) {
+    for (const key of variants.keys()) {
+      const m = INTERCITY_SUB_ROUTE.exec(key);
+      if (m?.[1]) routes.add(m[1]);
+    }
+  }
+  const sorted = [...routes].sort();
+  const encoded = new URLSearchParams({ $filter: routeUidFilter(sorted) }).toString();
+  return encoded.length > MAX_ROUTE_FILTER_CHARS ? null : sorted;
 }
 
 /**
