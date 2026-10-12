@@ -107,6 +107,8 @@ export interface CleanFeedResult {
   data: Uint8Array;
   dropped: string[];
   repairs: Repair[];
+  /** With a `region`: trips left after the trim and repairs (0 when nothing serves the region). */
+  tripsKept?: number;
 }
 
 /**
@@ -137,6 +139,8 @@ export function cleanFeed(
   const dirty = new Set<string>();
   const fixed: Record<string, Uint8Array> = {};
   const repairs: Repair[] = [];
+  // Without stop times nothing serves the region.
+  let tripsKept = options.region ? 0 : undefined;
 
   if (options.region && stopTimes) {
     const shapesPath = pathNamed("shapes.txt");
@@ -149,9 +153,12 @@ export function cleanFeed(
     stopTimes = region.stopTimes;
     if (shapesPath && region.shapes && region.shapes !== shapes) fixed[shapesPath] = region.shapes;
     repairs.push(...region.repairs);
+    tripsKept = region.tripsKept;
   }
 
   const repaired = repairFeed(texts, options);
+  // The repairs remove only trips the trim kept (their stop times go with them).
+  if (tripsKept !== undefined) tripsKept -= repaired.removedTrips.size;
   for (const [file, text] of repaired.changed) {
     texts.set(file, text);
     dirty.add(file);
@@ -170,12 +177,26 @@ export function cleanFeed(
     repairs.push(...orphans.repairs);
   }
   for (const file of dirty) fixed[pathOf.get(file) as string] = strToU8(texts.get(file) as string);
-  if (dropped.length === 0 && Object.keys(fixed).length === 0) return { data, dropped, repairs };
+  if (dropped.length === 0 && Object.keys(fixed).length === 0) return { data, dropped, repairs, tripsKept };
 
   const kept = unzipSync(data, {
     filter: (f) => !f.name.endsWith("/") && !skip.includes(basename(f.name).toLowerCase()) && !(f.name in fixed),
   });
-  return { data: zipSync({ ...kept, ...fixed }, { level: 1 }), dropped, repairs };
+  return { data: zipSync({ ...kept, ...fixed }, { level: 1 }), dropped, repairs, tripsKept };
+}
+
+/**
+ * Split cleaned feeds into those to build and those a region trim left without trips (the Taipei
+ * Metro feed has none in Hsinchu). Empty feeds are left out because OTP's handling of them is
+ * unverified; a feed that was not trimmed (no `tripsKept`) is always built.
+ */
+export function feedsToBuild<T extends { tripsKept?: number }>(feeds: T[]): { build: T[]; empty: T[] } {
+  const build = feeds.filter((f) => f.tripsKept !== 0);
+  const empty = feeds.filter((f) => f.tripsKept === 0);
+  if (build.length === 0 && empty.length > 0) {
+    throw new Error("No GTFS feed has trips in the region: check GTFS_BBOX (minLon,minLat,maxLon,maxLat).");
+  }
+  return { build, empty };
 }
 
 export interface ConfigTemplates {

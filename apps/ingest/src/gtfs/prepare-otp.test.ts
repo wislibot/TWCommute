@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { strToU8, unzipSync, zipSync } from "fflate";
 import { describe, expect, it } from "vitest";
-import { cleanFeed, feedIdFromName, renderOtpConfigs, splitBundle } from "./prepare-otp";
+import { cleanFeed, feedIdFromName, feedsToBuild, renderOtpConfigs, splitBundle } from "./prepare-otp";
 
 const traAgency = strToU8("agency_id,agency_name\nTRA,臺鐵\n");
 const busAgency = strToU8("agency_id,agency_name\nTPE,臺北市公車\n");
@@ -70,6 +70,22 @@ describe("renderOtpConfigs", () => {
     expect(JSON.parse(out.routerConfig).updaters.every((u: { type: string }) => u.type !== "stop-time-updater")).toBe(
       true,
     );
+  });
+});
+
+describe("feedsToBuild", () => {
+  it("leaves out feeds a region trim emptied and keeps feeds that were not trimmed", () => {
+    const { build, empty } = feedsToBuild([
+      { feedId: "tw", tripsKept: 26_639 },
+      { feedId: "trtc", tripsKept: 0 },
+      { feedId: "extra", tripsKept: undefined },
+    ]);
+    expect(build.map((f) => f.feedId)).toEqual(["tw", "extra"]);
+    expect(empty.map((f) => f.feedId)).toEqual(["trtc"]);
+  });
+
+  it("fails when the region leaves no feed with trips", () => {
+    expect(() => feedsToBuild([{ tripsKept: 0 }, { tripsKept: 0 }])).toThrow(/GTFS_BBOX/);
   });
 });
 

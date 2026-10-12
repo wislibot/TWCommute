@@ -1,9 +1,26 @@
 import { strToU8, unzipSync, zipSync } from "fflate";
 import { describe, expect, it } from "vitest";
 import { cleanFeed } from "./prepare-otp";
-import { GREATER_TAIPEI, parseBBox } from "./region";
+import { GREATER_TAIPEI, HSINCHU, parseBBox } from "./region";
 
 const box = parseBBox(GREATER_TAIPEI);
+const hsinchu = parseBBox(HSINCHU);
+
+const zipFeed = (feed: Record<string, string>) =>
+  zipSync(Object.fromEntries(Object.entries(feed).map(([k, v]) => [k, strToU8(v)])));
+
+/** A cleaned feed's file texts, and the first column of each file's rows. */
+function read(data: Uint8Array) {
+  const out = unzipSync(data);
+  const text = (name: string) => new TextDecoder().decode(out[name]);
+  const ids = (name: string) =>
+    text(name)
+      .trim()
+      .split("\n")
+      .slice(1)
+      .map((l) => l.split(",")[0]);
+  return { text, ids };
+}
 
 // Taipei Main (inside), Banqiao (inside), Taichung (outside), Kaohsiung (outside).
 const files = {
@@ -34,19 +51,12 @@ const files = {
 };
 
 describe("cleanFeed with a region", () => {
-  const zip = zipSync(Object.fromEntries(Object.entries(files).map(([k, v]) => [k, strToU8(v)])));
-  const { data, repairs } = cleanFeed(zip, { region: box });
-  const out = unzipSync(data);
-  const text = (name: string) => new TextDecoder().decode(out[name]);
-  const ids = (name: string) =>
-    text(name)
-      .trim()
-      .split("\n")
-      .slice(1)
-      .map((l) => l.split(",")[0]);
+  const { data, repairs, tripsKept } = cleanFeed(zipFeed(files), { region: box });
+  const { text, ids } = read(data);
 
   it("keeps trips with two stops inside whole, and drops trips outside", () => {
     expect(ids("trips.txt").length).toBe(2);
+    expect(tripsKept).toBe(2);
     expect(text("trips.txt")).toContain("T1");
     expect(text("trips.txt")).not.toContain("K1");
     // The train keeps its stops outside the region, so its times are intact.
@@ -89,6 +99,54 @@ describe("cleanFeed with a region", () => {
       "frequencies.txt:1",
       "shapes.txt:2",
     ]);
+  });
+});
+
+// HSR Taipei, Taoyuan and Taichung are outside the Hsinchu box, HSR Hsinchu inside; an intercity
+// bus from Taipei has one stop inside too.
+const hsr = {
+  "agency.txt": "agency_id,agency_name\nTHSR,臺灣高速鐵路股份有限公司\nTHB,國光客運\n",
+  "routes.txt": "route_id,agency_id,route_type\nTHSR_1,THSR,2\nTHB181901_0,THB,3\n",
+  "stops.txt":
+    "stop_id,stop_name,stop_lat,stop_lon\n" +
+    "HSR_TPE,臺北,25.0478,121.517\nHSR_TY,桃園,25.0129,121.2149\nHSR_HC,新竹,24.8083,121.0402\n" +
+    "HSR_TC,臺中,24.1121,120.6158\nBUS_TPE,臺北轉運站,25.0491,121.5172\nBUS_HC,新竹轉運站,24.8016,120.9716\n",
+  "trips.txt": "trip_id,route_id,service_id\nH1,THSR_1,S1\nX1,THB181901_0,S1\n",
+  "calendar.txt":
+    "service_id,monday,tuesday,wednesday,thursday,friday,saturday,sunday,start_date,end_date\n" +
+    "S1,1,1,1,1,1,1,1,20261001,20261231\n",
+  "stop_times.txt":
+    "trip_id,arrival_time,departure_time,stop_id,stop_sequence\n" +
+    "H1,08:00:00,08:00:00,HSR_TPE,1\nH1,08:20:00,08:20:00,HSR_TY,2\nH1,08:33:00,08:33:00,HSR_HC,3\n" +
+    "H1,09:05:00,09:05:00,HSR_TC,4\nX1,07:00:00,07:00:00,BUS_TPE,1\nX1,08:20:00,08:20:00,BUS_HC,2\n",
+};
+
+describe("cleanFeed with the Hsinchu box", () => {
+  const { data, tripsKept } = cleanFeed(zipFeed(hsr), { region: hsinchu });
+  const { text, ids } = read(data);
+
+  it("keeps a rail trip with one stop inside whole", () => {
+    expect(ids("trips.txt")).toEqual(["H1"]);
+    expect(ids("stop_times.txt")).toEqual(["H1", "H1", "H1", "H1"]);
+    expect(text("stop_times.txt")).toContain("H1,09:05:00,09:05:00,HSR_TC,4");
+    expect(ids("stops.txt")).toEqual(["HSR_TPE", "HSR_TY", "HSR_HC", "HSR_TC"]);
+  });
+
+  it("drops a bus trip with one stop inside", () => {
+    expect(text("trips.txt")).not.toContain("X1");
+    expect(ids("routes.txt")).toEqual(["THSR_1"]);
+    expect(ids("agency.txt")).toEqual(["THSR"]);
+    expect(tripsKept).toBe(1);
+  });
+
+  it("keeps no trips of a feed entirely outside the box", () => {
+    const taipei = cleanFeed(zipFeed(files), { region: hsinchu });
+    expect(taipei.tripsKept).toBe(0);
+    expect(read(taipei.data).ids("trips.txt")).toEqual([]);
+  });
+
+  it("does not count trips the repairs remove afterwards", () => {
+    expect(cleanFeed(zipFeed(files), { region: box, excludeAgencies: ["TRA", "TPE"] }).tripsKept).toBe(0);
   });
 });
 
