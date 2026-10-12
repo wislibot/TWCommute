@@ -135,10 +135,12 @@ describe("analyzeBusMapping", () => {
       routeUidInGtfs: 50,
       subRouteUidInGtfs: 0,
       etaRows: 2,
-      etaJoinable: 50,
+      // The route list says TPE10307 runs as sub-route TPE103070, which this feed lacks, so the
+      // production lookup cannot join either row even though the RouteUID is a route_id here.
+      etaJoinable: 0,
     });
     expect(r.bestHypothesis).toBe("StopUID=stop_id (50%), RouteUID=route_id (50%)");
-    expect(r.samples.unmatchedEtaKeys).toEqual(["TPE404|TPE10307"]);
+    expect(r.samples.unmatchedEtaKeys).toEqual(["TPE1|TPE10307", "TPE404|TPE10307"]);
   });
 
   it("recognises the TDX layout route_id = <SubRouteUID>_<Direction>", () => {
@@ -206,6 +208,21 @@ describe("analyzeBusMapping", () => {
     // 3 of the 4 (sub-route, direction) pairs are GTFS routes; the outbound route-level row is ambiguous.
     expect(r).toMatchObject({ subRouteDirInGtfs: 75, etaRows: 2, etaJoinable: 50 });
     expect(r.samples.unmatchedEtaKeys).toEqual(["TPE1|TPE10307"]);
+  });
+
+  it("does not count a route-level row as joinable when a variant reuses the route id", () => {
+    const idx = buildGtfsIdIndex([
+      { data: zip({ "stops.txt": "stop_id\nTPE12478\n", "routes.txt": "route_id\nTPE10811_0\nTPE159203_0\n" }) },
+    ]);
+    const sub = (SubRouteUID: string) => ({ SubRouteUID, SubRouteID: SubRouteUID, Direction: 0 });
+    const r = analyzeBusMapping(
+      "Taipei",
+      idx,
+      [stop("TPE12478", "12478")],
+      [{ RouteUID: "TPE10811", RouteID: "10811", RouteName: {}, SubRoutes: [sub("TPE10811"), sub("TPE159203")] }],
+      [{ StopUID: "TPE12478", RouteUID: "TPE10811", Direction: 0 }],
+    );
+    expect(r).toMatchObject({ etaRows: 1, etaJoinable: 0 });
   });
 
   it("returns null percentages for empty inputs and tolerates junk rows", () => {

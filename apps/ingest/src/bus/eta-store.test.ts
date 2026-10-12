@@ -105,3 +105,33 @@ describe("BusEtaStore parent fallback needs a single variant per direction", () 
     expect(s.find({ stopUid: "TPE1", subRouteUid: "TPE12", direction: 1 })).toBeNull();
   });
 });
+
+describe("BusEtaStore when a variant reuses the route's own id (live TDX data)", () => {
+  it("does not attach a Taipei route-level row to 685 when 685經吉林 also runs that way", () => {
+    const store = new BusEtaStore();
+    store.replace("Taipei", [{ StopUID: "TPE12478", RouteUID: "TPE10811", Direction: 0, EstimateTime: 120 }]);
+    store.setRoutes("Taipei", [
+      {
+        RouteUID: "TPE10811",
+        RouteID: "10811",
+        RouteName: { Zh_tw: "685" },
+        SubRoutes: [
+          { SubRouteUID: "TPE10811", SubRouteID: "10811", Direction: 0 },
+          { SubRouteUID: "TPE159203", SubRouteID: "159203", Direction: 0 },
+        ],
+      },
+    ]);
+    expect(store.find({ stopUid: "TPE12478", subRouteUid: "TPE10811", direction: 0 })).toBeNull();
+    expect(store.find({ stopUid: "TPE12478", subRouteUid: "TPE159203", direction: 0 })).toBeNull();
+  });
+
+  it("matches rows that name their sub-route only to that sub-route (Taichung 105 / 105延)", () => {
+    const store = new BusEtaStore();
+    store.replace("Taichung", [
+      { StopUID: "TXG1", RouteUID: "TXG105", SubRouteUID: "TXG105", Direction: 0, EstimateTime: 900 },
+      { StopUID: "TXG1", RouteUID: "TXG105", SubRouteUID: "TXG1052", Direction: 0, EstimateTime: 120 },
+    ]);
+    expect(store.find({ stopUid: "TXG1", subRouteUid: "TXG105", direction: 0 })?.etaSeconds).toBe(900);
+    expect(store.find({ stopUid: "TXG1", subRouteUid: "TXG1052", direction: 0 })?.etaSeconds).toBe(120);
+  });
+});

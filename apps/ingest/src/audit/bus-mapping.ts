@@ -70,18 +70,17 @@ export function analyzeBusMapping(
   const routeUidInGtfs = share(uRoutes, (r) => has(index.routeIds, idOf(r.RouteUID)));
   const subRouteUidInGtfs = share(subRoutes, (s) => has(index.routeIds, idOf(s.SubRouteUID)));
   const subRouteDirInGtfs = share(subRoutes, (s) => has(index.routeIds, routeKey(s.SubRouteUID, s.Direction)));
-  const variants = new SubRouteIndex(uRoutes);
-  const soleSubRoute = (route: string, direction: number) => variants.soleSubRoute(route, direction);
+  const routeList = new SubRouteIndex(uRoutes);
+  const variantsOf = (route: string, direction: number) => routeList.variants(route, direction);
   // Production rule: tdxRouteKey (apps/api/src/lib/ids.ts) + etaServesSubRoute (BusEtaStore.find).
   const joinable = (e: TdxBusEta) => {
     if (!has(index.stopIds, idOf(e.StopUID))) return false;
     const row = { routeUid: idOf(e.RouteUID), subRouteUid: idOf(e.SubRouteUID) || undefined, direction: e.Direction };
-    const keys = [row.subRouteUid, row.routeUid, soleSubRoute(row.routeUid, e.Direction)];
+    const keys = row.subRouteUid ? [row.subRouteUid] : [row.routeUid, ...variantsOf(row.routeUid, e.Direction)];
     return keys.some(
       (k) =>
-        k !== undefined &&
         (has(index.routeIds, routeKey(k, e.Direction)) || has(index.routeIds, k)) &&
-        etaServesSubRoute(row, k, soleSubRoute),
+        etaServesSubRoute(row, k, variantsOf),
     );
   };
 

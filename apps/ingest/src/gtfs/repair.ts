@@ -5,7 +5,7 @@ import { editRecords, quote } from "./csv-bytes";
  * Repairs for GTFS problems that make OTP abort the whole graph build. All were found in the TDX
  * national feed (October 2026, see docs/DATA.md): repeated ids, stops on levels that levels.txt
  * lacks, trips of routes that routes.txt lacks, pathways between stops that do not exist or to a
- * station, and HH:MM times.
+ * station, and HH:MM times; plus one service_id per calendar, without which OTP's build stalls.
  * Each repair is the smallest change that keeps the rest of the data: clear an optional
  * reference, or drop the rows that cannot be loaded.
  */
@@ -30,7 +30,7 @@ export const KEYED_FILES: Record<string, string> = {
 };
 
 /** Small files the repair reads; stop_times.txt is filtered separately as bytes. */
-export const REPAIR_INPUT_FILES = [...Object.keys(KEYED_FILES), "frequencies.txt"];
+export const REPAIR_INPUT_FILES = [...Object.keys(KEYED_FILES), "frequencies.txt", "calendar_dates.txt"];
 
 /** A GTFS text file as raw records, so untouched rows keep their exact text. */
 export class CsvTable {
@@ -211,11 +211,79 @@ export function repairFeed(files: Map<string, string>): RepairResult {
     mark("frequencies.txt", n > 0);
   }
 
+  for (const file of mergeIdenticalServices(tables, repairs)) changed.add(file);
+
   return {
     changed: new Map([...changed].map((f) => [f, (tables.get(f) as CsvTable).toText()])),
     removedTrips,
     repairs,
   };
+}
+
+/**
+ * Give trips that run on the same days the same service_id. The TDX feed has a service_id per
+ * trip (187,930) for only 445 distinct calendars, and OTP 2.10 copies its whole service map for
+ * every service id it adds (`TripCalendars.withServiceCode`): the full-Taiwan build sat in that
+ * step for over 20 minutes without finishing. Two ids are merged only when their calendar.txt
+ * rows and their calendar_dates.txt exceptions are identical, so every trip keeps its dates.
+ * Returns the changed files.
+ */
+function mergeIdenticalServices(tables: Map<string, CsvTable>, repairs: Repair[]): string[] {
+  const calendar = tables.get("calendar.txt");
+  const dates = tables.get("calendar_dates.txt");
+  const trips = tables.get("trips.txt");
+  if (!trips || (!calendar && !dates)) return [];
+  const calId = calendar?.col("service_id") ?? -1;
+  const datesId = dates?.col("service_id") ?? -1;
+  const tripService = trips.col("service_id");
+  if (tripService < 0 || (calendar && calId < 0) || (dates && datesId < 0)) return [];
+
+  // Signature = the calendar row without its id + the sorted exception rows without their id.
+  const rowWithout = (fields: string[], col: number) => fields.filter((_, i) => i !== col).join(",");
+  const calendarSig = new Map<string, string>();
+  for (const r of calendar?.records ?? []) {
+    const f = parseRecord(r);
+    calendarSig.set(f[calId] ?? "", rowWithout(f, calId));
+  }
+  const exceptions = new Map<string, string[]>();
+  for (const r of dates?.records ?? []) {
+    const f = parseRecord(r);
+    const id = f[datesId] ?? "";
+    const list = exceptions.get(id) ?? [];
+    list.push(rowWithout(f, datesId));
+    exceptions.set(id, list);
+  }
+  const canonical = new Map<string, string>();
+  const bySignature = new Map<string, string>();
+  for (const id of new Set([...calendarSig.keys(), ...exceptions.keys()])) {
+    const sig = `${calendarSig.get(id) ?? "-"}|${(exceptions.get(id) ?? []).sort().join(";")}`;
+    const first = bySignature.get(sig);
+    if (first === undefined) bySignature.set(sig, id);
+    canonical.set(id, first ?? id);
+  }
+  const merged = canonical.size - bySignature.size;
+  if (merged === 0) return [];
+
+  const keep = (table: CsvTable | undefined, col: number) => {
+    if (table)
+      table.records = table.records.filter((r) => canonical.get(parseRecord(r)[col] ?? "") === parseRecord(r)[col]);
+  };
+  keep(calendar, calId);
+  keep(dates, datesId);
+  trips.records = trips.records.map((r) => {
+    const f = parseRecord(r);
+    const id = f[tripService] ?? "";
+    const to = canonical.get(id);
+    if (to === undefined || to === id) return r;
+    f[tripService] = to;
+    return f.map(quote).join(",");
+  });
+  repairs.push({
+    file: "calendar.txt",
+    rows: merged,
+    what: `service_id with the same days as another: merged (${bySignature.size} distinct calendars)`,
+  });
+  return ["trips.txt", ...(calendar ? ["calendar.txt"] : []), ...(dates ? ["calendar_dates.txt"] : [])];
 }
 
 /** GTFS times are H:MM:SS; some TDX rows (Matsu buses) have "15:15", which OTP cannot read. */

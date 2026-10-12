@@ -44,34 +44,36 @@ export class SubRouteIndex {
     this.size = all.size;
   }
 
-  /** The route's only sub-route in this direction; undefined when it has none or several. */
-  soleSubRoute(routeUid: string, direction: number): string | undefined {
-    const subs = new Set([
+  /** The route's sub-routes in this direction (empty when the route is not in the list). */
+  variants(routeUid: string, direction: number): ReadonlySet<string> {
+    return new Set([
       ...(this.byRouteDir.get(`${routeUid}|${direction}`) ?? []),
       ...(this.byRouteDir.get(`${routeUid}|*`) ?? []),
     ]);
-    return subs.size === 1 ? [...subs][0] : undefined;
   }
 }
 
 /** The fields of an ETA row that decide which GTFS route it belongs to. */
 export type EtaRouteFields = Pick<EtaResult, "routeUid" | "subRouteUid" | "direction">;
 
+/** A route's sub-routes in a direction; empty when unknown. */
+export type VariantLookup = (routeUid: string, direction: number) => ReadonlySet<string>;
+
 /**
  * Does a TDX ETA row describe buses of this GTFS sub-route (`<SubRouteUID>` from the GTFS
- * route id `<SubRouteUID>_<Direction>`)? It does when the row names that sub-route, when the
- * GTFS key is the route itself (no separate sub-routes), or when the row has no sub-route
- * (Taipei, New Taipei) and its route has exactly this one sub-route in the row's direction.
- * With several variants in a direction a route-level row could be any of them, so it is not
- * attached. The Phase 0 audit (src/audit/bus-mapping.ts) measures joins with this same rule.
+ * route id `<SubRouteUID>_<Direction>`)?
+ * - A row that names its sub-route matches only that sub-route.
+ * - A row without one (Taipei, New Taipei) matches when its route has exactly this one sub-route
+ *   in the row's direction. With several variants (e.g. 685 and 685經吉林, where the main variant
+ *   reuses the route's id) the row could be any of them, so it is not attached.
+ * - When the route list does not know the route, the row matches the route id itself.
+ * The Phase 0 audit (src/audit/bus-mapping.ts) measures joins with this same rule.
  */
-export function etaServesSubRoute(
-  e: EtaRouteFields,
-  subRouteUid: string,
-  soleSubRoute: (routeUid: string, direction: number) => string | undefined,
-): boolean {
-  if (e.subRouteUid === subRouteUid || e.routeUid === subRouteUid) return true;
-  return !e.subRouteUid && soleSubRoute(e.routeUid, e.direction) === subRouteUid;
+export function etaServesSubRoute(e: EtaRouteFields, subRouteUid: string, variantsOf: VariantLookup): boolean {
+  if (e.subRouteUid) return e.subRouteUid === subRouteUid;
+  const variants = variantsOf(e.routeUid, e.direction);
+  if (variants.size === 0) return e.routeUid === subRouteUid;
+  return variants.size === 1 && variants.has(subRouteUid);
 }
 
 /**
@@ -93,12 +95,12 @@ export class BusEtaStore {
     return index.size;
   }
 
-  private soleSubRoute = (routeUid: string, direction: number): string | undefined => {
+  private variantsOf: VariantLookup = (routeUid, direction) => {
     for (const index of this.routesByFeed.values()) {
-      const hit = index.soleSubRoute(routeUid, direction);
-      if (hit) return hit;
+      const hit = index.variants(routeUid, direction);
+      if (hit.size > 0) return hit;
     }
-    return undefined;
+    return new Set();
   };
 
   replace(feed: string, rows: TdxBusEta[]): number {
@@ -137,7 +139,7 @@ export class BusEtaStore {
   find(q: EtaQuery): EtaResult | null {
     const candidates = this.atStop(q.stopUid).filter(
       (e) =>
-        (q.subRouteUid ? etaServesSubRoute(e, q.subRouteUid, this.soleSubRoute) : true) &&
+        (q.subRouteUid ? etaServesSubRoute(e, q.subRouteUid, this.variantsOf) : true) &&
         (q.routeUid ? e.routeUid === q.routeUid || e.subRouteUid === q.routeUid : true) &&
         (q.direction === undefined ? true : e.direction === q.direction),
     );

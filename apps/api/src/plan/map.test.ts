@@ -133,6 +133,20 @@ describe("via stays with requested dwell times", () => {
     expect(legs[1]?.end.scheduled).toBe(t("11:13"));
   });
 
+  it("keeps the dwell of a via the next vehicle is boarded at (review finding)", () => {
+    // Stop A (60 min), walk to stop B (30 min), then the bus from B. OTP left 95 min at B.
+    const legs = shiftViaDepartures(
+      [
+        leg("BUS", "08:40", "09:00", { to: 0 }),
+        leg("WALK", "09:00", "09:05", { from: 0, to: 1 }),
+        leg("BUS", "10:40", "11:00", { from: 1 }),
+      ],
+      [60, 30],
+    );
+    expect(stay(legs, 0)).toBe(60);
+    expect(stay(legs, 1)).toBe(35);
+  });
+
   it("leaves a via whose next leg is the vehicle itself untouched", () => {
     const input = [leg("BUS", "08:40", "09:00", { to: 0 }), leg("BUS", "10:00", "10:30", { from: 0 })];
     expect(shiftViaDepartures(input, [60])).toEqual(input);

@@ -119,3 +119,46 @@ describe("repairStopTimes", () => {
     expect(repairStopTimes(input, new Set()).data).toBe(input);
   });
 });
+
+describe("merging identical service calendars", () => {
+  it("gives trips with the same days one service_id and keeps every trip's dates", () => {
+    const { changed, repairs } = repairFeed(
+      new Map(
+        Object.entries({
+          "calendar.txt":
+            "service_id,monday,tuesday,wednesday,thursday,friday,saturday,sunday,start_date,end_date\n" +
+            "A,1,1,1,1,1,0,0,20261001,20261231\n" +
+            "B,1,1,1,1,1,0,0,20261001,20261231\n" +
+            "C,1,1,1,1,1,0,0,20261001,20261231\n" +
+            "W,0,0,0,0,0,1,1,20261001,20261231\n",
+          // C has a holiday exception, so it is not the same as A and B.
+          "calendar_dates.txt": "service_id,date,exception_type\nC,20261010,2\nD,20261012,1\nE,20261012,1\n",
+          "trips.txt": "route_id,service_id,trip_id\nR,A,T1\nR,B,T2\nR,C,T3\nR,W,T4\nR,D,T5\nR,E,T6\n",
+        }),
+      ),
+    );
+    expect(changed.get("trips.txt")).toBe(
+      "route_id,service_id,trip_id\nR,A,T1\nR,A,T2\nR,C,T3\nR,W,T4\nR,D,T5\nR,D,T6\n",
+    );
+    expect(changed.get("calendar.txt")).not.toContain("\nB,");
+    expect(changed.get("calendar.txt")).toContain("\nC,");
+    expect(changed.get("calendar_dates.txt")).toBe("service_id,date,exception_type\nC,20261010,2\nD,20261012,1\n");
+    expect(repairs).toContainEqual({
+      file: "calendar.txt",
+      rows: 2,
+      what: "service_id with the same days as another: merged (4 distinct calendars)",
+    });
+  });
+
+  it("changes nothing when every calendar is distinct", () => {
+    const r = repairFeed(
+      new Map(
+        Object.entries({
+          "calendar_dates.txt": "service_id,date,exception_type\nD,20261012,1\nE,20261013,1\n",
+          "trips.txt": "route_id,service_id,trip_id\nR,D,T1\nR,E,T2\n",
+        }),
+      ),
+    );
+    expect(r.changed.size).toBe(0);
+  });
+});

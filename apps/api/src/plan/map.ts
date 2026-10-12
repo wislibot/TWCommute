@@ -139,7 +139,10 @@ const when = (t: Leg["start"]) => Date.parse(t.estimated ?? t.scheduled);
  * infra/smoke). For each chain of street legs between a via and the next vehicle, move legs later
  * so that:
  * - every via in the chain gets at least its requested dwell (when known), in order;
- * - spare time goes to the last via before boarding, keeping up to a 2-minute buffer at the stop;
+ * - when the vehicle is boarded at a via, that via's dwell is kept as the wait for the vehicle,
+ *   and spare time stays there too;
+ * - otherwise spare time goes to the last via before boarding, keeping up to a 2-minute buffer at
+ *   the stop;
  * - nothing moves past the vehicle's (live) departure.
  * A chain can hold several vias, e.g. a stop via followed by a nearby coordinate via.
  */
@@ -156,6 +159,9 @@ export function shiftViaDepartures(legs: Leg[], dwellMinutes: number[] = []): Le
     const transit = out[t];
     if (!transit) break;
     let remaining = when(transit.start) - when((out[t - 1] as Leg).end);
+    // Boarding at a via: the wait at that stop is its stay, so keep its dwell there.
+    const boardingVia = transit.from.viaIndex;
+    if (boardingVia !== undefined) remaining -= (dwellMinutes[boardingVia] ?? 0) * 60_000;
     // Extra wait to insert before each via departure in the chain.
     const extra = new Map<number, number>();
     const viaStarts: number[] = [];
@@ -171,7 +177,7 @@ export function shiftViaDepartures(legs: Leg[], dwellMinutes: number[] = []): Le
       remaining -= give;
     }
     const last = viaStarts.at(-1);
-    if (last !== undefined && remaining > VIA_BOARDING_BUFFER_MS) {
+    if (boardingVia === undefined && last !== undefined && remaining > VIA_BOARDING_BUFFER_MS) {
       extra.set(last, (extra.get(last) ?? 0) + remaining - VIA_BOARDING_BUFFER_MS);
     }
     let shift = 0;
