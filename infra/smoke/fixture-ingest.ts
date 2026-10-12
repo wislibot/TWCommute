@@ -36,26 +36,23 @@ bikes.setStations("Taipei", [
   station("TPE900002", "終點站", 25.0498, 121.5196),
 ]);
 bikes.setAvailability("Taipei", [avail("TPE900001", 2, 18), avail("TPE900002", 15, 0)]);
+// Taipei-shaped ETA rows: TDX's Taipei feed has RouteUID but no SubRouteUID, so they reach the GTFS
+// route TPE103070_<dir> through the route list (one sub-route per direction).
 const busEta = new BusEtaStore();
+busEta.setRoutes("Taipei", [
+  {
+    RouteUID: "TPE10307",
+    RouteID: "10307",
+    RouteName: { Zh_tw: "307" },
+    SubRoutes: [
+      { SubRouteUID: "TPE103070", SubRouteID: "103070", Direction: 0 },
+      { SubRouteUID: "TPE103070", SubRouteID: "103070", Direction: 1 },
+    ],
+  },
+]);
 busEta.replace("Taipei", [
-  {
-    StopUID: "TPE10002",
-    RouteUID: "TPE10307",
-    SubRouteUID: "TPE103070",
-    Direction: 0,
-    EstimateTime: 300,
-    StopStatus: 0,
-    SrcUpdateTime: now,
-  },
-  {
-    StopUID: "TPE10002",
-    RouteUID: "TPE10307",
-    SubRouteUID: "TPE103070",
-    Direction: 1,
-    EstimateTime: 60,
-    StopStatus: 0,
-    SrcUpdateTime: now,
-  },
+  { StopUID: "TPE10002", RouteUID: "TPE10307", Direction: 0, EstimateTime: 300, StopStatus: 0, SrcUpdateTime: now },
+  { StopUID: "TPE10002", RouteUID: "TPE10307", Direction: 1, EstimateTime: 60, StopStatus: 0, SrcUpdateTime: now },
 ]);
 
 const app = createServer({

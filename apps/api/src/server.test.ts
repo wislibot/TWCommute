@@ -16,7 +16,6 @@ function deps(overrides: Record<string, unknown> = {}) {
     },
     ingest: {
       busEta: vi.fn().mockResolvedValue([]),
-      busEtaAtStop: vi.fn().mockResolvedValue([]),
       bikesNearby: vi.fn().mockResolvedValue([]),
       bikesInBBox: vi.fn().mockResolvedValue([]),
       health: vi.fn().mockResolvedValue({ status: "ok", feeds: [] }),

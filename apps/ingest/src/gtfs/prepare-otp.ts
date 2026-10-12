@@ -1,5 +1,5 @@
-import { unzipSync, zipSync } from "fflate";
-import { parseCsv } from "./csv";
+import { strToU8, unzipSync, zipSync } from "fflate";
+import { parseCsv, parseRecord, splitRecords } from "./csv";
 import { basename } from "./zip";
 
 export interface OtpFeed {
@@ -101,17 +101,87 @@ export const OTP_SKIPPED_FILES = [
   "stop_areas.txt",
 ];
 
-/** Re-zip a flat GTFS feed without the given files; returns the input unchanged if none are present. */
-export function dropFiles(
-  data: Uint8Array,
-  skip: string[] = OTP_SKIPPED_FILES,
-): { data: Uint8Array; dropped: string[] } {
+/**
+ * Files whose rows OTP loads as entities with an id: a repeated id aborts the whole graph build
+ * ("DuplicateEntityException"). The TDX national feed repeats some rows verbatim (two
+ * levels.txt rows in October 2026), so these are de-duplicated before OTP sees them.
+ */
+export const OTP_KEYED_FILES: Record<string, string> = {
+  "agency.txt": "agency_id",
+  "stops.txt": "stop_id",
+  "routes.txt": "route_id",
+  "trips.txt": "trip_id",
+  "calendar.txt": "service_id",
+  "levels.txt": "level_id",
+  "pathways.txt": "pathway_id",
+};
+
+export interface DedupeResult {
+  text: string;
+  /** Rows removed because their id was already seen. */
+  removed: number;
+  /** Removed rows whose content differed from the kept row (the first one wins). */
+  conflicting: number;
+}
+
+/** Drop rows whose `keyColumn` value was already seen, keeping the first. Other rows keep their exact text. */
+export function dedupeById(text: string, keyColumn: string): DedupeResult {
+  const records = splitRecords(text);
+  const header = records[0];
+  if (header === undefined) return { text, removed: 0, conflicting: 0 };
+  const col = parseRecord(header).findIndex((h) => h.trim() === keyColumn);
+  if (col < 0) return { text, removed: 0, conflicting: 0 };
+  const seen = new Map<string, string>();
+  const kept = [header];
+  let removed = 0;
+  let conflicting = 0;
+  for (const record of records.slice(1)) {
+    const id = parseRecord(record)[col] ?? "";
+    const first = seen.get(id);
+    if (first === undefined) {
+      seen.set(id, record);
+      kept.push(record);
+    } else {
+      removed++;
+      if (first !== record) conflicting++;
+    }
+  }
+  if (removed === 0) return { text, removed, conflicting };
+  return { text: `${kept.join("\n")}\n`, removed, conflicting };
+}
+
+export interface CleanFeedResult {
+  data: Uint8Array;
+  dropped: string[];
+  /** Per keyed file, how many duplicate-id rows were removed. */
+  deduped: Record<string, DedupeResult["removed"]>;
+  conflicting: Record<string, DedupeResult["conflicting"]>;
+}
+
+/**
+ * Make a flat GTFS feed safe for OTP: remove the `skip` files and duplicate-id rows. Returns the
+ * input unchanged when there is nothing to fix. Only the keyed files are inflated to check them.
+ */
+export function cleanFeed(data: Uint8Array, skip: string[] = OTP_SKIPPED_FILES): CleanFeedResult {
   const dropped = listZip(data).filter((n) => skip.includes(basename(n).toLowerCase()));
-  if (dropped.length === 0) return { data, dropped };
+  const keyedOf = (name: string) => OTP_KEYED_FILES[basename(name).toLowerCase()];
+  const keyed = unzipSync(data, { filter: (f) => !f.name.endsWith("/") && keyedOf(f.name) !== undefined });
+  const fixed: Record<string, Uint8Array> = {};
+  const deduped: Record<string, number> = {};
+  const conflicting: Record<string, number> = {};
+  const decoder = new TextDecoder();
+  for (const [name, bytes] of Object.entries(keyed)) {
+    const result = dedupeById(decoder.decode(bytes), keyedOf(name) as string);
+    if (result.removed === 0) continue;
+    fixed[name] = strToU8(result.text);
+    deduped[basename(name)] = result.removed;
+    if (result.conflicting) conflicting[basename(name)] = result.conflicting;
+  }
+  if (dropped.length === 0 && Object.keys(fixed).length === 0) return { data, dropped, deduped, conflicting };
   const kept = unzipSync(data, {
-    filter: (f) => !f.name.endsWith("/") && !skip.includes(basename(f.name).toLowerCase()),
+    filter: (f) => !f.name.endsWith("/") && !skip.includes(basename(f.name).toLowerCase()) && !(f.name in fixed),
   });
-  return { data: zipSync(kept, { level: 1 }), dropped };
+  return { data: zipSync({ ...kept, ...fixed }, { level: 1 }), dropped, deduped, conflicting };
 }
 
 export interface ConfigTemplates {

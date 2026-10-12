@@ -176,6 +176,38 @@ describe("analyzeBusMapping", () => {
     expect(r.bestHypothesis).toContain("SubRouteUID_Direction=route_id (100%)");
   });
 
+  it("counts each sub-route direction and skips route-level rows with several variants", () => {
+    const idx = buildGtfsIdIndex([
+      {
+        data: zip({
+          "stops.txt": "stop_id\nTPE1\n",
+          "routes.txt": "route_id\nTPE103070_0\nTPE103071_0\nTPE103070_1\n",
+        }),
+      },
+    ]);
+    const sub = (SubRouteUID: string, Direction: number) => ({ SubRouteUID, SubRouteID: SubRouteUID, Direction });
+    const r = analyzeBusMapping(
+      "Taipei",
+      idx,
+      [stop("TPE1", "1")],
+      [
+        {
+          RouteUID: "TPE10307",
+          RouteID: "10307",
+          RouteName: {},
+          SubRoutes: [sub("TPE103070", 0), sub("TPE103071", 0), sub("TPE103070", 1), sub("TPE103072", 1)],
+        },
+      ],
+      [
+        { StopUID: "TPE1", RouteUID: "TPE10307", Direction: 0 },
+        { StopUID: "TPE1", RouteUID: "TPE10307", SubRouteUID: "TPE103071", Direction: 0 },
+      ],
+    );
+    // 3 of the 4 (sub-route, direction) pairs are GTFS routes; the outbound route-level row is ambiguous.
+    expect(r).toMatchObject({ subRouteDirInGtfs: 75, etaRows: 2, etaJoinable: 50 });
+    expect(r.samples.unmatchedEtaKeys).toEqual(["TPE1|TPE10307"]);
+  });
+
   it("returns null percentages for empty inputs and tolerates junk rows", () => {
     const r = analyzeBusMapping("X", index, [null as never], [], []);
     expect(r).toMatchObject({ tdxStops: 0, stopUidInGtfs: null, etaJoinable: null });

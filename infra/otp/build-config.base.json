@@ -2,6 +2,9 @@
   "transitServiceStart": "-P3D",
   "transitServiceEnd": "P60D",
   "osmCacheDataInMem": true,
+  "osmDefaults": {
+    "timeZone": "Asia/Taipei"
+  },
   "osm": [{ "source": "osm/taiwan.osm.pbf" }],
   "transitFeeds": []
 }

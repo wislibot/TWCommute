@@ -96,7 +96,7 @@ export function mapLeg(leg: OtpLeg, toViaIndex?: number, fromViaIndex?: number):
  * Map an OTP itinerary. Via visits are numbered in the order the traveler reaches them:
  * the leg arriving at a visited via gets `to.viaIndex`, the leg leaving it `from.viaIndex`.
  */
-export function mapItinerary(it: OtpItinerary, id: string): Itinerary {
+export function mapItinerary(it: OtpItinerary, id: string, dwellMinutes: number[] = []): Itinerary {
   const legs = it.legs.filter((l): l is OtpLeg => l !== null);
   let viaCounter = -1;
   let pendingFrom: number | undefined;
@@ -111,7 +111,7 @@ export function mapItinerary(it: OtpItinerary, id: string): Itinerary {
     }
     return mapLeg(leg, toVia, fromVia);
   });
-  const legsOut = shiftViaDepartures(mapped);
+  const legsOut = shiftViaDepartures(mapped, dwellMinutes);
   const first = legsOut[0];
   const last = legsOut.at(-1);
   return {
@@ -130,24 +130,56 @@ export const VIA_BOARDING_BUFFER_MS = 2 * 60_000;
 
 const isStreetMode = (mode: LegMode) => mode === "WALK" || mode === "BICYCLE";
 
+/** When a leg is (expected) to happen: the live estimate when there is one. */
+const when = (t: Leg["start"]) => Date.parse(t.estimated ?? t.scheduled);
+
 /**
- * OTP honours `minimumWaitTime` at a via, but times the street legs leaving the via "as early as
+ * OTP honours `minimumWaitTime` at a via, but times the street legs leaving a via "as early as
  * possible", so the stay shows up as waiting at the next stop (verified against OTP 2.10 in
- * infra/smoke). Move those street legs later so the time is spent at the via, keeping a small
- * buffer before boarding.
+ * infra/smoke). For each chain of street legs between a via and the next vehicle, move legs later
+ * so that:
+ * - every via in the chain gets at least its requested dwell (when known), in order;
+ * - spare time goes to the last via before boarding, keeping up to a 2-minute buffer at the stop;
+ * - nothing moves past the vehicle's (live) departure.
+ * A chain can hold several vias, e.g. a stop via followed by a nearby coordinate via.
  */
-export function shiftViaDepartures(legs: Leg[]): Leg[] {
+export function shiftViaDepartures(legs: Leg[], dwellMinutes: number[] = []): Leg[] {
   const out = [...legs];
-  for (let k = 0; k < out.length; k++) {
-    if (out[k]?.from.viaIndex === undefined) continue;
+  let k = 0;
+  while (k < out.length) {
+    if ((out[k] as Leg).from.viaIndex === undefined || !isStreetMode((out[k] as Leg).mode)) {
+      k++;
+      continue;
+    }
     let t = k;
     while (t < out.length && isStreetMode((out[t] as Leg).mode)) t++;
     const transit = out[t];
-    const lastStreet = out[t - 1];
-    if (t === k || !transit || !lastStreet) continue;
-    const slack = Date.parse(transit.start.scheduled) - Date.parse(lastStreet.end.scheduled) - VIA_BOARDING_BUFFER_MS;
-    if (!(slack > 0)) continue;
-    for (let j = k; j < t; j++) out[j] = shiftLeg(out[j] as Leg, slack);
+    if (!transit) break;
+    let remaining = when(transit.start) - when((out[t - 1] as Leg).end);
+    // Extra wait to insert before each via departure in the chain.
+    const extra = new Map<number, number>();
+    const viaStarts: number[] = [];
+    for (let j = k; j < t; j++) {
+      const via = (out[j] as Leg).from.viaIndex;
+      if (via === undefined) continue;
+      viaStarts.push(j);
+      const prev = out[j - 1];
+      const stayed = prev ? when((out[j] as Leg).start) - when(prev.end) : 0;
+      const need = Math.max(0, (dwellMinutes[via] ?? 0) * 60_000 - stayed);
+      const give = Math.max(0, Math.min(need, remaining));
+      extra.set(j, give);
+      remaining -= give;
+    }
+    const last = viaStarts.at(-1);
+    if (last !== undefined && remaining > VIA_BOARDING_BUFFER_MS) {
+      extra.set(last, (extra.get(last) ?? 0) + remaining - VIA_BOARDING_BUFFER_MS);
+    }
+    let shift = 0;
+    for (let j = k; j < t; j++) {
+      shift += extra.get(j) ?? 0;
+      if (shift > 0) out[j] = shiftLeg(out[j] as Leg, shift);
+    }
+    k = t;
   }
   return out;
 }

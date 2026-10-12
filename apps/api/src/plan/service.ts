@@ -24,7 +24,13 @@ export async function plan(req: PlanRequest, deps: PlanDeps): Promise<PlanRespon
 
   let itineraries = (conn.edges ?? [])
     .filter((e): e is NonNullable<typeof e> => e !== null)
-    .map((e, i) => mapItinerary(e.node, `${conn.pageInfo.startCursor ?? "p"}-${i}`));
+    .map((e, i) =>
+      mapItinerary(
+        e.node,
+        `${conn.pageInfo.startCursor ?? "p"}-${i}`,
+        req.vias.map((v) => v.dwellMinutes),
+      ),
+    );
 
   itineraries = await overlayLiveBus(itineraries, deps.ingest, now, deps.liveWindowMinutes);
   itineraries = await addDockRisk(itineraries, deps.ingest, now);

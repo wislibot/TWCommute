@@ -22,38 +22,84 @@ export interface EtaResult {
   asOf: string;
 }
 
+/** Sub-routes of each TDX route per direction, from TDX's static route list. */
+export class SubRouteIndex {
+  private byRouteDir = new Map<string, Set<string>>();
+  readonly size: number;
+
+  constructor(routes: readonly (TdxBusRoute | null | undefined)[]) {
+    const all = new Set<string>();
+    for (const r of routes) {
+      if (!r?.RouteUID) continue;
+      for (const s of Array.isArray(r.SubRoutes) ? r.SubRoutes : []) {
+        if (!s?.SubRouteUID) continue;
+        // A sub-route without a direction counts in every direction.
+        const key = `${r.RouteUID}|${s.Direction ?? "*"}`;
+        const set = this.byRouteDir.get(key) ?? new Set<string>();
+        set.add(s.SubRouteUID);
+        this.byRouteDir.set(key, set);
+        all.add(s.SubRouteUID);
+      }
+    }
+    this.size = all.size;
+  }
+
+  /** The route's only sub-route in this direction; undefined when it has none or several. */
+  soleSubRoute(routeUid: string, direction: number): string | undefined {
+    const subs = new Set([
+      ...(this.byRouteDir.get(`${routeUid}|${direction}`) ?? []),
+      ...(this.byRouteDir.get(`${routeUid}|*`) ?? []),
+    ]);
+    return subs.size === 1 ? [...subs][0] : undefined;
+  }
+}
+
+/** The fields of an ETA row that decide which GTFS route it belongs to. */
+export type EtaRouteFields = Pick<EtaResult, "routeUid" | "subRouteUid" | "direction">;
+
+/**
+ * Does a TDX ETA row describe buses of this GTFS sub-route (`<SubRouteUID>` from the GTFS
+ * route id `<SubRouteUID>_<Direction>`)? It does when the row names that sub-route, when the
+ * GTFS key is the route itself (no separate sub-routes), or when the row has no sub-route
+ * (Taipei, New Taipei) and its route has exactly this one sub-route in the row's direction.
+ * With several variants in a direction a route-level row could be any of them, so it is not
+ * attached. The Phase 0 audit (src/audit/bus-mapping.ts) measures joins with this same rule.
+ */
+export function etaServesSubRoute(
+  e: EtaRouteFields,
+  subRouteUid: string,
+  soleSubRoute: (routeUid: string, direction: number) => string | undefined,
+): boolean {
+  if (e.subRouteUid === subRouteUid || e.routeUid === subRouteUid) return true;
+  return !e.subRouteUid && soleSubRoute(e.routeUid, e.direction) === subRouteUid;
+}
+
 /**
  * Latest bus ETAs (TDX N1) for every polled city, indexed by stop. A city's entries are
  * replaced atomically on each poll so stale rows never linger.
  */
 export class BusEtaStore {
   private byFeed = new Map<string, Map<string, EtaResult[]>>();
-  /** SubRouteUID → RouteUID, from TDX route lists (per feed). */
-  private parentsByFeed = new Map<string, Map<string, string>>();
+  /** Sub-route lists per feed, replaced on each refresh. */
+  private routesByFeed = new Map<string, SubRouteIndex>();
 
   /**
-   * Remember which route each sub-route belongs to. Taipei and New Taipei ETA rows carry only
-   * RouteUID, while GTFS route ids use the sub-route (Phase 0 audit), so this links the two.
+   * Remember each route's sub-routes. Taipei and New Taipei ETA rows carry only RouteUID, while
+   * GTFS route ids use the sub-route (Phase 0 audit), so this links the two.
    */
   setRoutes(feed: string, routes: TdxBusRoute[]): number {
-    const parents = new Map<string, string>();
-    for (const r of routes) {
-      if (!r?.RouteUID) continue;
-      for (const s of Array.isArray(r.SubRoutes) ? r.SubRoutes : []) {
-        if (s?.SubRouteUID) parents.set(s.SubRouteUID, r.RouteUID);
-      }
-    }
-    this.parentsByFeed.set(feed, parents);
-    return parents.size;
+    const index = new SubRouteIndex(routes);
+    this.routesByFeed.set(feed, index);
+    return index.size;
   }
 
-  private parentOf(subRouteUid: string): string | undefined {
-    for (const parents of this.parentsByFeed.values()) {
-      const hit = parents.get(subRouteUid);
+  private soleSubRoute = (routeUid: string, direction: number): string | undefined => {
+    for (const index of this.routesByFeed.values()) {
+      const hit = index.soleSubRoute(routeUid, direction);
       if (hit) return hit;
     }
     return undefined;
-  }
+  };
 
   replace(feed: string, rows: TdxBusEta[]): number {
     const byStop = new Map<string, EtaResult[]>();
@@ -87,20 +133,11 @@ export class BusEtaStore {
     return [];
   }
 
-  /**
-   * Best match for a stop + route (+ direction). A sub-route key matches rows with that sub-route,
-   * rows whose route id equals it (no separate sub-route), and rows without a sub-route whose route
-   * is the sub-route's parent (Taipei/New Taipei feeds).
-   */
+  /** Best match for a stop + route (+ direction); see `etaServesSubRoute` for the route rule. */
   find(q: EtaQuery): EtaResult | null {
-    const parent = q.subRouteUid ? this.parentOf(q.subRouteUid) : undefined;
     const candidates = this.atStop(q.stopUid).filter(
       (e) =>
-        (q.subRouteUid
-          ? e.subRouteUid === q.subRouteUid ||
-            e.routeUid === q.subRouteUid ||
-            (!e.subRouteUid && parent !== undefined && e.routeUid === parent)
-          : true) &&
+        (q.subRouteUid ? etaServesSubRoute(e, q.subRouteUid, this.soleSubRoute) : true) &&
         (q.routeUid ? e.routeUid === q.routeUid || e.subRouteUid === q.routeUid : true) &&
         (q.direction === undefined ? true : e.direction === q.direction),
     );

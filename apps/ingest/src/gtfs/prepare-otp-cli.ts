@@ -7,7 +7,7 @@
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { gtfsPaths, readIfExists } from "./files";
-import { dropFiles, renderOtpConfigs, splitBundle } from "./prepare-otp";
+import { cleanFeed, renderOtpConfigs, splitBundle } from "./prepare-otp";
 
 async function main() {
   const dataDir = process.env.DATA_DIR ?? "./data";
@@ -33,9 +33,13 @@ async function main() {
   await rm(join(otpDir, "gtfs"), { recursive: true, force: true });
   await mkdir(join(otpDir, "gtfs"), { recursive: true });
   for (const f of feeds) {
-    const { data, dropped } = dropFiles(f.data);
+    const { data, dropped, deduped, conflicting } = cleanFeed(f.data);
     f.data = data;
     if (dropped.length) console.log(`  ${f.feedId}: dropped ${dropped.join(", ")} (not used by OTP)`);
+    for (const [file, n] of Object.entries(deduped)) {
+      const differing = conflicting[file] ? `, ${conflicting[file]} with different content (kept the first)` : "";
+      console.log(`  ${f.feedId}: removed ${n} duplicate-id rows from ${file}${differing}`);
+    }
     await writeFile(join(otpDir, "gtfs", f.fileName), f.data);
   }
 

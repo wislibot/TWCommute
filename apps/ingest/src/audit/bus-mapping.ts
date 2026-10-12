@@ -1,4 +1,5 @@
 import type { TdxBusEta, TdxBusRoute, TdxBusStop } from "@twc/tdx";
+import { etaServesSubRoute, SubRouteIndex } from "../bus/eta-store";
 import { ageSeconds, countBy, pct, percentiles } from "./stats";
 import type { BusMappingResult, EtaQualityResult, GtfsIdIndex, Pct } from "./types";
 
@@ -51,9 +52,10 @@ export function analyzeBusMapping(
 ): BusMappingResult {
   const uStops = uniqueBy(stops, (s) => idOf(s.StopUID));
   const uRoutes = uniqueBy(routes, (r) => idOf(r.RouteUID));
+  // A sub-route is listed once per direction it runs in; each pair is a separate GTFS route.
   const subRoutes = uniqueBy(
     uRoutes.flatMap((r) => (Array.isArray(r.SubRoutes) ? r.SubRoutes : [])),
-    (s) => idOf(s.SubRouteUID),
+    (s) => (idOf(s.SubRouteUID) ? `${idOf(s.SubRouteUID)}|${idOf(s.Direction)}` : ""),
   );
   const uEtas = uniqueBy(etas, (e) =>
     [idOf(e.StopUID), idOf(e.RouteUID), idOf(e.SubRouteUID), idOf(e.Direction)].join("|"),
@@ -68,19 +70,19 @@ export function analyzeBusMapping(
   const routeUidInGtfs = share(uRoutes, (r) => has(index.routeIds, idOf(r.RouteUID)));
   const subRouteUidInGtfs = share(subRoutes, (s) => has(index.routeIds, idOf(s.SubRouteUID)));
   const subRouteDirInGtfs = share(subRoutes, (s) => has(index.routeIds, routeKey(s.SubRouteUID, s.Direction)));
-  // Sub-routes of each route, for ETA rows that carry only RouteUID (Taipei, New Taipei).
-  const subsOf = new Map<string, string[]>();
-  for (const r of uRoutes) {
-    const subs = (Array.isArray(r.SubRoutes) ? r.SubRoutes : []).map((s) => idOf(s?.SubRouteUID)).filter(Boolean);
-    subsOf.set(idOf(r.RouteUID), subs);
-  }
-  // Mirrors tdxRouteKey (apps/api/src/lib/ids.ts) + BusEtaStore.find.
+  const variants = new SubRouteIndex(uRoutes);
+  const soleSubRoute = (route: string, direction: number) => variants.soleSubRoute(route, direction);
+  // Production rule: tdxRouteKey (apps/api/src/lib/ids.ts) + etaServesSubRoute (BusEtaStore.find).
   const joinable = (e: TdxBusEta) => {
     if (!has(index.stopIds, idOf(e.StopUID))) return false;
-    const keys = idOf(e.SubRouteUID)
-      ? [idOf(e.SubRouteUID), idOf(e.RouteUID)]
-      : [idOf(e.RouteUID), ...(subsOf.get(idOf(e.RouteUID)) ?? [])];
-    return keys.some((k) => has(index.routeIds, routeKey(k, e.Direction)) || has(index.routeIds, k));
+    const row = { routeUid: idOf(e.RouteUID), subRouteUid: idOf(e.SubRouteUID) || undefined, direction: e.Direction };
+    const keys = [row.subRouteUid, row.routeUid, soleSubRoute(row.routeUid, e.Direction)];
+    return keys.some(
+      (k) =>
+        k !== undefined &&
+        (has(index.routeIds, routeKey(k, e.Direction)) || has(index.routeIds, k)) &&
+        etaServesSubRoute(row, k, soleSubRoute),
+    );
   };
 
   return {

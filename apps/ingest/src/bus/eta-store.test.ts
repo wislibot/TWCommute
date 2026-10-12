@@ -68,3 +68,40 @@ describe("BusEtaStore parent routes (ETA rows without SubRouteUID)", () => {
     expect(store.find({ stopUid: "TPE1", subRouteUid: "TPE999990", direction: 0 })).toBeNull();
   });
 });
+
+describe("BusEtaStore parent fallback needs a single variant per direction", () => {
+  const sub = (SubRouteUID: string, Direction?: number) => ({
+    SubRouteUID,
+    SubRouteID: SubRouteUID.slice(3),
+    ...(Direction === undefined ? {} : { Direction }),
+  });
+  const store = new BusEtaStore();
+  store.replace("Taipei", [
+    { StopUID: "TPE1", RouteUID: "TPE10307", Direction: 0, EstimateTime: 300 },
+    { StopUID: "TPE1", RouteUID: "TPE10307", Direction: 1, EstimateTime: 60 },
+  ]);
+  store.setRoutes("Taipei", [
+    {
+      RouteUID: "TPE10307",
+      RouteID: "10307",
+      RouteName: {},
+      // Outbound has a main line and a short-turn variant; inbound only the main line.
+      SubRoutes: [sub("TPE103070", 0), sub("TPE103071", 0), sub("TPE103070", 1)],
+    },
+  ]);
+  it("does not guess between variants in the same direction", () => {
+    expect(store.find({ stopUid: "TPE1", subRouteUid: "TPE103070", direction: 0 })).toBeNull();
+    expect(store.find({ stopUid: "TPE1", subRouteUid: "TPE103071", direction: 0 })).toBeNull();
+  });
+  it("matches the only variant in the other direction", () => {
+    expect(store.find({ stopUid: "TPE1", subRouteUid: "TPE103070", direction: 1 })?.etaSeconds).toBe(60);
+  });
+  it("counts sub-routes without a direction in every direction", () => {
+    const s = new BusEtaStore();
+    s.replace("Taipei", [{ StopUID: "TPE1", RouteUID: "TPE1", Direction: 1, EstimateTime: 10 }]);
+    s.setRoutes("Taipei", [
+      { RouteUID: "TPE1", RouteID: "1", RouteName: {}, SubRoutes: [sub("TPE11"), sub("TPE12", 1)] },
+    ]);
+    expect(s.find({ stopUid: "TPE1", subRouteUid: "TPE12", direction: 1 })).toBeNull();
+  });
+});

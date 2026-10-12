@@ -114,15 +114,18 @@ async function main() {
     const prefixes = await step(`city prefixes ${feed.feedId}`, () => analyzeCityPrefixes(feed));
     if (prefixes) report.cityPrefix.push(prefixes);
   }
-  const index = await step("index GTFS ids", () => buildGtfsIdIndex(feeds));
+  // Without GTFS every id would look unmatched, so the mapping check is skipped rather than reported as 0%.
+  const index = feeds.length > 0 ? await step("index GTFS ids", () => buildGtfsIdIndex(feeds)) : undefined;
+  if (!index) report.errors.push("bus id mapping: skipped, no GTFS feeds loaded");
 
   // Buses: id mapping (live-ETA overlay assumption) and ETA quality, per city.
   for (const city of [...cities, "InterCity" as const]) {
+    const etas = await step(`bus ETA ${city}`, () => getBusEta(tdx, city));
+    if (etas) report.eta.push(analyzeEtaQuality(city, etas, Date.now()));
+    if (!index || !etas) continue;
     const stops = await step(`bus stops ${city}`, () => getBusStops(tdx, city));
     const routes = await step(`bus routes ${city}`, () => getBusRoutes(tdx, city));
-    const etas = await step(`bus ETA ${city}`, () => getBusEta(tdx, city));
-    if (index && stops && routes && etas) report.busMapping.push(analyzeBusMapping(city, index, stops, routes, etas));
-    if (etas) report.eta.push(analyzeEtaQuality(city, etas, Date.now()));
+    if (stops && routes) report.busMapping.push(analyzeBusMapping(city, index, stops, routes, etas));
   }
 
   // TRA: can live delays be mapped onto GTFS trips and stops?

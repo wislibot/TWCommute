@@ -39,11 +39,6 @@ export class IngestClient {
     return body.results;
   }
 
-  async busEtaAtStop(stopUid: string): Promise<EtaResult[]> {
-    return (await this.request<{ results: EtaResult[] }>(`/internal/bus-eta/stop/${encodeURIComponent(stopUid)}`))
-      .results;
-  }
-
   async bikesInBBox(b: BBox): Promise<BikeStation[]> {
     const q = new URLSearchParams(Object.entries(b).map(([k, v]) => [k, String(v)]));
     return (await this.request<{ stations: BikeStation[] }>(`/internal/bikes?${q}`)).stations;

@@ -106,8 +106,11 @@ export function LegList({ itinerary }: { itinerary: Itinerary }) {
     <View style={styles.list}>
       {itinerary.legs.map((leg, i) => {
         const next = itinerary.legs[i + 1];
+        // Live times when known, so the stay matches the times shown on the rows.
         const stay =
-          leg.to.viaIndex !== undefined && next ? minutesBetween(leg.end.scheduled, next.start.scheduled) : null;
+          leg.to.viaIndex !== undefined && next
+            ? minutesBetween(leg.end.estimated ?? leg.end.scheduled, next.start.estimated ?? next.start.scheduled)
+            : null;
         return (
           <View key={legKey(leg)}>
             <LegRow leg={leg} />

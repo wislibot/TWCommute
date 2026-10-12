@@ -13,7 +13,7 @@ import { nearbyStops, stopDepartures } from "./stops/service";
 
 export interface ApiDeps {
   otp: Pick<OtpClient, "query">;
-  ingest: Pick<IngestClient, "busEta" | "busEtaAtStop" | "bikesNearby" | "bikesInBBox" | "health">;
+  ingest: Pick<IngestClient, "busEta" | "bikesNearby" | "bikesInBBox" | "health">;
   liveWindowMinutes: number;
   planRateLimitPerMin: number;
   now?: () => Date;
