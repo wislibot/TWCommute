@@ -153,3 +153,19 @@ On trip legs (12 bus-only plans across Taipei, 64 distinct bus legs leaving with
 Ingest now also indexes bus stops from the GTFS at start-up: ~95 s and 2.0 GB resident (was ~45 s and 1.7 GB); 109,123 bus stops.
 
 **Timetables vs live buses (boards).** TDX's Taipei bus timetables miss buses that TDX's live data tracks. At Taipei Main Station (忠孝) on 2026-10-12 at 20:05, route 253's next timetabled trip was 21:18 while TDX predicted a bus in 5 minutes; route 247's was 21:09 against a prediction of 31 minutes. Stop boards therefore show a live prediction within the board's hour for any bus route without a timetabled departure in that hour (also covering the 219 headway-only routes, which OTP lists no stop times for), and show up to 20 departures instead of 3.
+
+### Greater Taipei on an 8 GB machine — 2026-10-12 21:30–22:00 Taipei (Monday)
+
+All of Taiwan needs a 16 GB machine, so `infra/scripts/try-taipei.sh` sets up Greater Taipei only (box `121.28,24.85,121.80,25.30`: Taipei, New Taipei, Keelung, Tamsui). `prepare-otp` with `GTFS_BBOX` keeps the trips with two or more stops in the box, whole, so trains through the region keep their stops and times outside it; `fetch-data.sh` with `BBOX` clips the map. Run here in an empty data folder:
+
+| Step | Result |
+| --- | --- |
+| GTFS trim | 120,352 of 192,174 trips, 52,726 stops, 3.88M stop times kept; `tw.gtfs.zip` 46 MB (88.5 MB for all of Taiwan). Stations in the box keep their entrances and pathways |
+| Graph build, `-Xmx4g` | ~4.5 min, 3.9 GB peak (measured in an earlier run with the same data and heap); `graph.obj` 908 MB, 48,942 stops |
+| Start: ingest, then OTP once YouBike docks are loaded, then the API | 76 s |
+| Running | OTP 2.97 GB, ingest 0.32 GB (1.08 GB peak at start-up, reading the trimmed feed), API 0.27 GB: **~3.5 GB** |
+| First run, downloads included | 10 min (map from a local copy); 2.3 GB on disk |
+
+On this stack: Taipei Main → Tamsui 2.4 s, 5 options (metro, 52 min, TPASS covered); the same with 90 min at Dihua St 2.0 s, 4 options, stays of 95 min with YouBike legs and dock risk; a YouBike trip from City Hall to National Taiwan University 0.4 s; search 142 ms; 1,604 YouBike docks in a central Taipei box; live ETAs on the Taipei Main Station boards.
+
+OTP reads YouBike docks from ingest once at start-up and does not retry: started before ingest it had no docks at all. The script and `docker-compose.yml` now start OTP only after ingest has loaded them.

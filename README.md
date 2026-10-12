@@ -7,7 +7,7 @@ A multilingual (繁體中文 / English / 日本語 / 한국어) transit planner 
 - **TPASS-aware:** each route says whether your monthly pass covers it.
 - **Honest live data:** every time is labeled *Live* or *Scheduled*. No ads, no account.
 
-Status: **Phase 1 scaffold**. The services and app build and pass their tests, but the system has **not yet been run against live TDX data**. That's the Phase 0 audit in [docs/DATA.md](docs/DATA.md). Read [docs/PRODUCT.md](docs/PRODUCT.md) for why and what, and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how.
+Status: **Phase 1**. The backend runs on live TDX data (all of Taiwan on a 16 GB machine, Greater Taipei on 8 GB); results are in [docs/DATA.md](docs/DATA.md). The app builds but has not yet run on a phone. **To try it on an Android phone, follow [docs/TRY_IT.md](docs/TRY_IT.md).** Read [docs/PRODUCT.md](docs/PRODUCT.md) for why and what, and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how.
 
 ## Repository
 
@@ -39,9 +39,11 @@ pnpm check          # biome lint + typecheck + tests across the workspace
 
 1. Register at [TDX](https://tdx.transportdata.tw/register) and create an API key.
 2. `cp .env.example .env` and fill in `TDX_CLIENT_ID` / `TDX_CLIENT_SECRET`.
-3. `infra/scripts/fetch-data.sh` downloads GTFS and OSM into `data/`. `prepare-otp` repairs GTFS data errors that would abort OTP's build (see `docs/DATA.md`). Set `BBOX` for a smaller dev extract; `OSM_URL` to use your own Taiwan extract.
+3. `infra/scripts/fetch-data.sh` downloads GTFS and OSM into `data/`. `prepare-otp` repairs GTFS data errors that would abort OTP's build (see `docs/DATA.md`). For a smaller region set `BBOX` (clips the map) and `GTFS_BBOX` (keeps only trips with two or more stops in the box); `OSM_URL` uses your own Taiwan extract.
 4. `infra/scripts/build-graph.sh` builds the OTP graph.
 5. `docker compose -f infra/docker-compose.yml up -d`. The API is then on `:3000`, OTP on `:8080` (debug UI), ingest on `:8081`.
+
+For Greater Taipei on one 8 GB Linux machine without Docker, `infra/scripts/try-taipei.sh` does all of this (see [docs/TRY_IT.md](docs/TRY_IT.md)).
 
 ### Without Docker
 
@@ -62,7 +64,7 @@ cd apps/mobile
 EXPO_PUBLIC_API_URL=http://<your-machine-ip>:3000 npx expo run:android   # or run:ios on macOS
 ```
 
-MapLibre is a native module, so use a development build (`npx expo run:*` or `eas build --profile development`), not Expo Go.
+MapLibre is a native module, so use a development build (`npx expo run:*` or `eas build --profile development`), not Expo Go. `eas build -p android --profile preview` builds an installable APK. The server address can also be set in the app under Settings → Server; Android builds allow plain `http://` so a computer on the home network works.
 
 ## Data and attribution
 

@@ -2,7 +2,7 @@
 # Run TWCommute's backend for Greater Taipei on one Linux machine (8 GB of RAM is enough), so the
 # Android app on a phone in the same Wi-Fi can use it. See docs/TRY_IT.md.
 #
-#   infra/scripts/try-taipei.sh            first run: download, build (20-30 min), then start
+#   infra/scripts/try-taipei.sh            first run: download, build (10-30 min), then start
 #   infra/scripts/try-taipei.sh start      start again (uses the data already built)
 #   infra/scripts/try-taipei.sh stop       stop everything
 #   infra/scripts/try-taipei.sh status     show what is running
@@ -10,7 +10,7 @@
 #
 # Needs Node 22+ with pnpm (corepack enable), osmium-tool, curl, and TDX_CLIENT_ID and
 # TDX_CLIENT_SECRET in .env (or the environment). Java 25 and OpenTripPlanner are downloaded into data/tools/ when missing.
-# Measured on the real data (docs/DATA.md): graph build 4 min at <= 4 GB; running stack ~3.4 GB.
+# Measured on the real data (docs/DATA.md): graph build 5 min at <= 4 GB; running stack ~3.5 GB.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
@@ -81,7 +81,7 @@ build() {
   download_tools
   say "Downloading timetables (TDX) and maps (OpenStreetMap), Greater Taipei only"
   # prepare-otp keeps only trips serving the region (GTFS_BBOX); fetch-data clips the map (BBOX).
-  DATA_DIR="$DATA_DIR" BBOX="$REGION_BBOX" GTFS_BBOX="$REGION_BBOX" OTP_INGEST_URL="http://localhost:$INGEST_PORT" \
+  DATA_DIR="$DATA_DIR" BBOX="$REGION_BBOX" GTFS_BBOX="$REGION_BBOX" OTP_INGEST_URL="http://localhost:$INGEST_PORT" QUIET_NEXT=1 \
     infra/scripts/fetch-data.sh
   say "Building the route graph (about 4 minutes)"
   rm -f "$OTP_DIR/graph.obj"

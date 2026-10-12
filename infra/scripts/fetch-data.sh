@@ -45,4 +45,5 @@ if [ -n "${BBOX:-}" ]; then
 else
   ln -f "$src" "$dest" 2>/dev/null || cp "$src" "$dest"
 fi
-echo "Done. Next: infra/scripts/build-graph.sh"
+# try-taipei.sh builds the graph itself.
+[ -n "${QUIET_NEXT:-}" ] || echo "Done. Next: infra/scripts/build-graph.sh"
