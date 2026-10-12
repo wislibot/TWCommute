@@ -1,111 +1,160 @@
 # Try TWCommute on your Android phone
 
-The backend runs on a Linux computer at home and covers **Greater Taipei** (Taipei, New Taipei, Keelung, Tamsui). The app runs on an Android phone on the same Wi-Fi. All of Taiwan needs a 16 GB machine; Greater Taipei fits in 8 GB.
+The backend runs on a Linux computer at home and the app runs on your Android phone on the same Wi-Fi. Pick one region:
 
-You need:
+- **Hsinchu** (`hsinchu`): Hsinchu City, Zhubei with HSR Hsinchu station, Baoshan with the Science Park, Zhudong and Zhunan. It uses about 1.2 GB of memory while running.
+- **Greater Taipei** (`taipei`): Taipei, New Taipei, Keelung and Tamsui. It uses about 3.5 GB while running and needs 4 GB free to build.
 
-- a Linux computer with **8 GB of RAM** and **5 GB of free disk**, on your home Wi-Fi or network;
-- an Android phone on the **same Wi-Fi**;
-- your TDX API key (`TDX_CLIENT_ID` and `TDX_CLIENT_SECRET`).
+All of Taiwan needs a 16 GB server, so this setup covers one region at a time. The steps below use Hsinchu; for Taipei, type `taipei` instead of `hsinchu`.
 
-## 1. Install the tools on the computer
+## What you need
 
-Ubuntu or Debian:
+- **A Linux computer:** Ubuntu, Linux Mint or Debian, with 8 GB of RAM and 5 GB of free disk, on your home Wi-Fi or network.
+- **An Android phone:** Android 7 or newer, 64-bit (almost every phone since 2017), on the **same Wi-Fi**.
+- **Your TDX key:** `TDX_CLIENT_ID` and `TDX_CLIENT_SECRET`, from <https://tdx.transportdata.tw/user/dataservice/key>.
+- **The app file:** `TWCommute-1.0.0.apk`, sent to you in the chat.
+
+## 1. Install the tools
+
+Open a terminal (Ctrl+Alt+T) and run:
 
 ```bash
-sudo apt update && sudo apt install -y git curl osmium-tool
+sudo apt update
+sudo apt install -y git curl osmium-tool
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
-# Close and reopen the terminal, then:
-nvm install 22
-corepack enable
 ```
 
-On Fedora use `sudo dnf install git curl osmium-tool`. Java and OpenTripPlanner are downloaded by the script, so you don't install them.
+**Close the terminal and open a new one**, then:
+
+```bash
+nvm install 22
+corepack enable
+node -v
+```
+
+`node -v` should print `v22.` followed by more numbers. From here on, don't use `sudo`: the script refuses to run as root, because under `sudo` it can't find the Node you just installed.
 
 ## 2. Get the code and add your TDX key
 
 ```bash
-git clone https://github.com/wislibot/TWCommute.git
+cd ~
+git clone --branch claude/eager-lovelace-70z86n https://github.com/wislibot/TWCommute.git
 cd TWCommute
-git checkout claude/eager-lovelace-70z86n
 cp .env.example .env
-nano .env        # fill in TDX_CLIENT_ID and TDX_CLIENT_SECRET, then save (Ctrl+O, Enter, Ctrl+X)
+nano .env
 ```
 
-`.env` stays on your computer; git ignores it.
+In `nano`:
+1. Put your key after `TDX_CLIENT_ID=` and `TDX_CLIENT_SECRET=`, with no spaces or quotes.
+2. Save with Ctrl+O, then Enter.
+3. Exit with Ctrl+X.
+
+`.env` stays on your computer; git never uploads it.
 
 ## 3. Start the backend
 
 ```bash
-infra/scripts/try-taipei.sh
+infra/scripts/try-it.sh hsinchu
 ```
 
-The first run downloads about 1.1 GB (timetables 466 MB, the Taiwan map 349 MB, OpenTripPlanner 191 MB, Java 140 MB), trims them to Greater Taipei and builds the route graph. It took 10 minutes on a fast connection when tested; allow up to 30 on a slower one. When it is done it prints:
+The first run does everything in one go:
+- installs the code's packages, about 1 GB;
+- downloads about 1.15 GB: timetables 466 MB, the Taiwan map 349 MB, OpenTripPlanner 191 MB and Java 140 MB;
+- trims the data to Hsinchu and builds the route graph;
+- starts the live data.
+
+After the downloads, the rest took 6 minutes when tested. When it's done it prints:
 
 ```
-== Ready
+== Ready: Hsinchu
 In the app: Settings -> Server, enter:  http://192.168.1.20:3000
 ```
 
-Write down that address. Your computer's IP will differ.
+Write down that address; yours will be different. The backend keeps running after the script ends, so you can close the terminal.
 
-Check it from the phone: open `http://<that address>/v1/health` in the phone's browser. You should see a short JSON text starting with `{"status":`. If the page doesn't load, see [Troubleshooting](#troubleshooting).
+**If your computer has a firewall turned on** (Ubuntu: `sudo ufw status` says `Status: active`), let the phone in:
 
-Later:
+```bash
+sudo ufw allow 3000/tcp
+```
 
-| Command | What it does |
-| --- | --- |
-| `infra/scripts/try-taipei.sh start` | Start again, e.g. after a reboot (about 1–2 minutes) |
-| `infra/scripts/try-taipei.sh stop` | Stop everything |
-| `infra/scripts/try-taipei.sh status` | Show what is running |
-| `infra/scripts/try-taipei.sh rebuild` | Download fresh timetables and rebuild (do this weekly) |
-
-The running backend uses about 3.5 GB of memory. Logs are in `data/run/`.
+**Check it from the phone:** open `http://<that address>/v1/health` in the phone's browser. You should see a short text starting with `{"status":"ok"`. If the page doesn't load, see [Troubleshooting](#troubleshooting).
 
 ## 4. Install the app
 
-Open the APK link you were sent on the phone, download it, and open the file. Android asks once to allow installs from your browser or file manager: allow it, then install.
-
-To build the APK yourself instead (free Expo account, 10–20 minutes on Expo's servers):
-
-```bash
-cd apps/mobile
-npx eas-cli@latest login
-npx eas-cli@latest init          # first time only: links the app to your Expo account
-npx eas-cli@latest build -p android --profile preview
-```
-
-When the build finishes it prints a link and a QR code. Scan the QR code with the phone.
+1. **Get the file onto the phone.** The easiest way is to open this chat in the Claude app on your phone and download `TWCommute-1.0.0.apk`. You can also copy it over with a USB cable or a messaging app.
+2. **Open the file.** Android asks once to allow installing apps from this source (your browser, Files or the Claude app): allow it, go back, and tap **Install**.
+3. **If Google Play Protect warns about an unknown app,** tap **More details → Install anyway**. The app is signed with a test key, not a Play Store key.
 
 ## 5. Point the app at your computer
 
-In the app, tap the **gear** on the home screen, go to **Server**, type the address from step 3 (for example `http://192.168.1.20:3000`), and tap **Save**.
+1. Open TWCommute and allow location.
+2. Tap **⚙** (top right of the home screen).
+3. Under **Server**, type the address from step 3, for example `http://192.168.1.20:3000`, and tap **Save**.
 
-## 6. What to try
+## 6. What to try in Hsinchu
 
-- **A day with stops:** plan Taipei Main Station → Tamsui, add a stop at Dihua Street (迪化街) for 90 minutes. The plan keeps your stay and continues afterwards.
-- **YouBike:** plan a short trip in Taipei City with YouBike on, e.g. Taipei City Hall → Songshan Cultural and Creative Park. Bike legs warn when the pickup dock may be empty or the drop-off dock full, and suggest a backup station.
-- **Stop boards:** tap a bus stop near you on the home screen. Each time is labelled *Live* or *Scheduled*.
-- **TPASS:** in Settings, choose your pass (e.g. 基北北桃). Each option then says whether the pass covers it.
-- **Languages:** switch between 繁體中文, English, 日本語 and 한국어 in Settings.
+| Try | What you should see |
+| --- | --- |
+| 新竹火車站 → 清華大學 | City buses 182 and 藍線1區, intercity buses 5608 and 9003, or YouBike |
+| 新竹火車站 → 高鐵新竹站 | The Liujia line train (about 30 minutes) |
+| 竹北火車站 → 新竹縣政府 | Bus 65A or 快捷1號, or YouBike |
+| 新竹火車站 → 新竹科學園區, or → 竹東 | Buses 182 or 5608 |
+| A day with a stop: 新竹火車站 → 城隍廟 (stay 60 minutes) → 南寮漁港 | The plan keeps your stay, then continues |
+| Departure boards: 新竹轉運站, 新竹火車站, 高鐵新竹站 | Each time is labelled *Live* or *Scheduled*; trains show live delays |
+| Settings → TPASS → 桃竹竹苗 | City and county buses say *covered*; YouBike is not covered |
+| Settings → language | 繁體中文, English, 日本語 and 한국어 |
+
+## 7. Daily use
+
+| Command (in `~/TWCommute`) | What it does |
+| --- | --- |
+| `infra/scripts/try-it.sh` | Start the region you used last, e.g. after a reboot (about 2–3 minutes) |
+| `infra/scripts/try-it.sh stop` | Stop everything |
+| `infra/scripts/try-it.sh status` | What is running, and how fresh each live feed is |
+| `infra/scripts/try-it.sh rebuild` | Download fresh timetables and rebuild (do this weekly) |
+
+The computer must stay on and awake. Turn off automatic suspend (Settings → Power), and don't close a laptop's lid. After a reboot, run the first command again. Logs are in `data/run/`.
+
+**To update to a newer version:**
+
+```bash
+cd ~/TWCommute
+infra/scripts/try-it.sh stop
+git pull
+infra/scripts/try-it.sh rebuild
+```
+
+A new app version comes as a new `.apk`: install it over the old one.
+
+**To switch region:** `infra/scripts/try-it.sh taipei` builds Taipei from the files already downloaded, then starts it. `infra/scripts/try-it.sh hsinchu` switches back, which only restarts because Hsinchu is already built.
 
 ## What this setup can't do yet
 
-- **Greater Taipei only.** Trips must start and end between Tamsui, Keelung, Sanxia and Xindian. Trains through the area keep all their stations, but there are no streets beyond the area.
-- **Live data on the free TDX plan** (5 requests a minute) covers **Taipei City** buses and YouBike only. New Taipei and Keelung buses show timetable times. Metro times come from the timetable.
-- **Same Wi-Fi only.** The phone reaches your computer only on your home network, and only while the computer is on and awake. Guest networks and some routers ("AP isolation" or "client isolation") block devices from reaching each other.
-- **First run on a real phone.** The app was built and checked on a computer, not yet on a device. Screenshots of anything odd help.
+- **One region at a time.** Trips must start and end inside it. Trains to Taipei or Taichung appear on departure boards, but trips to places outside the region can't be planned.
+- **Live data within the free TDX plan.** The plan allows 5 requests a minute, and Hsinchu uses about 4.2 of them for Hsinchu City and County buses, 41 intercity routes, YouBike and TRA delays. So run only one backend with your TDX key. Not every bus reports live times, and high-speed rail times come from the timetable.
+- **Partial TPASS checks.** For intercity buses and trains, TPASS shows *may be covered*: those are not yet checked station by station.
+- **Same Wi-Fi only.** Guest networks and routers with "AP isolation" or "client isolation" stop the phone from reaching the computer.
+- **First run on a real phone.** The app has been built and checked on a computer, not yet on a phone. Screenshots of anything odd help.
 
 ## Troubleshooting
 
 **The app says "Can't reach the TWCommute server".**
-1. Is the backend running? `infra/scripts/try-taipei.sh status` should list three `running` lines.
-2. Is the phone on the same Wi-Fi, not mobile data?
-3. Is the computer's firewall blocking port 3000? With Ubuntu's firewall: `sudo ufw status`. If it says `active`, run `sudo ufw allow 3000/tcp`.
-4. Did the computer's IP change (common after a reboot)? Run `hostname -I`, then update Settings → Server.
+1. Run `infra/scripts/try-it.sh status`: it should list ingest, otp and api as `running`.
+2. Make sure the phone is on the same Wi-Fi, not on mobile data.
+3. Check the firewall (step 3).
+4. Check whether the computer's address changed, which is common after a reboot. Run `hostname -I`, then update Settings → Server.
+5. On the computer, `curl http://localhost:3000/v1/health` should answer.
 
-**The script stops with "… did not start within … s".** Look at the end of the log it names in `data/run/`:
-- `ingest.log`: `401` or `invalid_client` means the TDX key in `.env` is wrong.
-- `otp.log`: `OutOfMemoryError` means other programs are using too much memory. Close the web browser and run `start` again.
+**Script error messages:**
 
-**The graph build fails.** See `data/run/build.log`. `rebuild` starts over.
+| Message | What to do |
+| --- | --- |
+| `Ingest cannot start: TDX rejected the key` | Fix `TDX_CLIENT_ID` / `TDX_CLIENT_SECRET` in `.env`, then run the script again. |
+| `Ingest did not start within 420 s` | See `data/run/ingest.log`. `429` means another program is using the same TDX key. |
+| `Graph build failed` | See `data/run/build.log`, then run `infra/scripts/try-it.sh hsinchu` again. `rebuild` downloads everything fresh. |
+| `Warning: only … MB of memory is available` | Close other programs (e.g. the web browser) and run it again. |
+| `Run this as your normal user` | Run it without `sudo`. |
+| `node is not installed` or `pnpm is not installed` | Open a new terminal, or run `nvm use 22` and `corepack enable`. |
+
+**The map opens on Taipei.** Allow location for TWCommute in the phone's settings. The map starts on Taipei until it knows where you are.

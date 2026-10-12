@@ -156,7 +156,7 @@ Ingest now also indexes bus stops from the GTFS at start-up: ~95 s and 2.0 GB re
 
 ### Greater Taipei on an 8 GB machine — 2026-10-12 21:30–22:00 Taipei (Monday)
 
-All of Taiwan needs a 16 GB machine, so `infra/scripts/try-taipei.sh` sets up Greater Taipei only (box `121.28,24.85,121.80,25.30`: Taipei, New Taipei, Keelung, Tamsui). `prepare-otp` with `GTFS_BBOX` keeps the trips with two or more stops in the box, whole, so trains through the region keep their stops and times outside it; `fetch-data.sh` with `BBOX` clips the map. Run here in an empty data folder:
+All of Taiwan needs a 16 GB machine, so `infra/scripts/try-taipei.sh` (now `try-it.sh taipei`) sets up Greater Taipei only (box `121.28,24.85,121.80,25.30`: Taipei, New Taipei, Keelung, Tamsui). `prepare-otp` with `GTFS_BBOX` keeps the trips with two or more stops in the box, whole, so trains through the region keep their stops and times outside it; `fetch-data.sh` with `BBOX` clips the map. Run here in an empty data folder:
 
 | Step | Result |
 | --- | --- |
@@ -169,3 +169,47 @@ All of Taiwan needs a 16 GB machine, so `infra/scripts/try-taipei.sh` sets up Gr
 On this stack: Taipei Main → Tamsui 2.4 s, 5 options (metro, 52 min, TPASS covered); the same with 90 min at Dihua St 2.0 s, 4 options, stays of 95 min with YouBike legs and dock risk; a YouBike trip from City Hall to National Taiwan University 0.4 s; search 142 ms; 1,604 YouBike docks in a central Taipei box; live ETAs on the Taipei Main Station boards.
 
 OTP reads YouBike docks from ingest once at start-up and does not retry: started before ingest it had no docks at all. The script and `docker-compose.yml` now start OTP only after ingest has loaded them.
+
+### Hsinchu on one machine — 2026-10-13 06:40–07:10 Taipei (Tuesday)
+
+`infra/scripts/try-it.sh hsinchu` sets up a second region: box `120.85,24.67,121.11,24.885` (Hsinchu City; Zhubei and HSR Hsinchu; Baoshan and the Science Park; Zhudong; Zhunan). Each region builds into its own `data/otp-<region>` folder and shares the downloads, so switching region only rebuilds a region that was never built.
+
+Two changes came from Hsinchu's data:
+
+- **Trains at a single station.** HSR Hsinchu is the only HSR station in the box, so the two-stop trim rule dropped all 3,091 HSR trains (and some TRA expresses). Rail trips now need only one stop in the box. Taipei gains 118 TRA trips from this.
+- **Intercity buses.** Intercity (公路客運) routes are most of Hsinchu's buses: 1,342 trips in the box, against 838 Hsinchu City and 473 Hsinchu County trips. Polling the national InterCity ETA feed means about 60,000 rows a minute, so ingest asks TDX only for the routes in the trimmed timetable (`BUS_INTERCITY_ROUTES=auto`: 41 routes, `$filter=RouteUID eq …`). It is still one request per poll.
+
+Run here from the downloads above (2026-10-12):
+
+| Step | Result |
+| --- | --- |
+| GTFS trim | 26,519 trips, 4,720 stops, 633k stop times kept, including all HSR trains at Hsinchu; `tw.gtfs.zip` 13.8 MB. Taipei Metro's feed has no trips in the box and is left out |
+| Graph build, `-Xmx3g` | 57 s, 1.58 GB peak; `graph.obj` 44 MB |
+| Trim, build and start, downloads reused | 5.5 min |
+| Start: ingest, then OTP once YouBike docks are loaded, then the API | 2.5 min (two cities' YouBike within 5 requests/minute) |
+| Running | OTP 0.60 GB, ingest 0.30 GB (0.50 GB peak), API 0.26 GB: **~1.2 GB** |
+| TDX load | 4.2 requests/minute by the estimate; 11 live feeds all fresh, no 429 |
+
+Trips through the API at 06:47:
+
+| Trip | Result |
+| --- | --- |
+| 新竹火車站 → 清華大學 | 1.3 s. City bus 182 (TPASS 桃竹竹苗: covered), intercity 5608 (TPASS unknown) or YouBike |
+| 新竹火車站 → 高鐵新竹站 | 0.4 s. Liujia line, 30 min |
+| 竹北火車站 → 新竹縣政府 | 0.3 s. County bus 65A with a live ETA, 快捷1號 or YouBike |
+| 新竹火車站 → 竹東, → 科學園區 | 0.3 s. Intercity 5608, city bus 182 |
+| 新竹火車站 → 城隍廟 (60 min) → 南寮漁港 | 0.6 s. Stays of 79–100 min (the next buses after the stay) |
+| 巨城 → 清華大學 | 0.3 s. 藍線1區 with a live ETA (157 s) or YouBike |
+
+**Departure boards:**
+- 新竹 TRA: 19 departures, 11 with live TRA delays.
+- 高鐵新竹站: HSR trains, from the timetable.
+- 新竹轉運站: intercity 9003, live.
+- 城隍廟: city bus 10, live.
+
+**Other checks:**
+- Search 清華大學 finds the stop in 58 ms.
+- `/v1/bikes` returns 94 YouBike docks in central Hsinchu.
+
+**Long YouBike-only trips are now capped at 45 minutes** (`maxDirectStreetDurationForMode`). Before, the first option to Zhudong was an 81-minute YouBike ride. Bike legs inside transit trips were already limited to 25 minutes.
+
