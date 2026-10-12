@@ -1,6 +1,5 @@
 import { parseCsv } from "./csv";
 import { editRecords } from "./csv-bytes";
-import { basename, readGtfsBytes, readGtfsFiles } from "./zip";
 
 /**
  * Lookups needed to turn TDX TRA delays (train number + station id) into GTFS-RT updates
@@ -117,34 +116,4 @@ const TRA_STOP = /^TRA[_-](\d{3,5})$/;
 /** `TRA_1004_0_1132` or `TRA_1004_0_1132_20261011_102700` → `1004`. */
 function trainNoFromId(id: string | undefined): string {
   return /^TRA_([0-9A-Za-z]+)_/.exec(id ?? "")?.[1] ?? "";
-}
-
-/**
- * Build the index from a TDX GTFS zip, choosing the inner feed that contains TRA trips, and read
- * that feed's TRA stop patterns from stop_times.txt.
- */
-export function buildTraIndexFromZip(zip: Uint8Array): TraIndex {
-  const files = readGtfsFiles(zip, ["agency.txt", "routes.txt", "trips.txt", "stops.txt"]);
-  const feeds = new Map<string, Record<string, string>>();
-  for (const [path, text] of files) {
-    const dir = path.slice(0, path.length - basename(path).length);
-    const feed = feeds.get(dir) ?? {};
-    feed[basename(path).replace(".txt", "")] = text;
-    feeds.set(dir, feed);
-  }
-  let best = emptyTraIndex();
-  let bestDir = "";
-  for (const [dir, feed] of feeds) {
-    const idx = buildTraIndex(feed);
-    if (idx.tripIdsByTrainNo.size > best.tripIdsByTrainNo.size) {
-      best = idx;
-      bestDir = dir;
-    }
-  }
-  if (best.tripIdsByTrainNo.size === 0) return best;
-  const stopTimes = readGtfsBytes(zip, ["stop_times.txt"]).get(`${bestDir}stop_times.txt`);
-  if (stopTimes) {
-    best.stopsByTripId = readTraStopPatterns(stopTimes, new Set([...best.tripIdsByTrainNo.values()].flat()));
-  }
-  return best;
 }

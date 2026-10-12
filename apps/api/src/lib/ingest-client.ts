@@ -5,6 +5,8 @@ export interface EtaQuery {
   routeUid?: string;
   subRouteUid?: string;
   direction?: number;
+  /** Where a trip leg gets off; lets ingest use a route-level ETA shared by several variants. */
+  toStopUid?: string;
 }
 
 export interface EtaResult {

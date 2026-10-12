@@ -1,7 +1,8 @@
 import { strToU8, zipSync } from "fflate";
 import GtfsRealtime from "gtfs-realtime-bindings";
 import { describe, expect, it } from "vitest";
-import { buildTraIndex, buildTraIndexFromZip, readTraStopPatterns } from "../gtfs/tra-index";
+import { buildTraIndexFromZip } from "../gtfs/indexes";
+import { buildTraIndex, readTraStopPatterns } from "../gtfs/tra-index";
 import { buildTraTripUpdates, taipeiServiceDate, tripsForNow } from "./tra-trip-updates";
 
 const files = {

@@ -21,6 +21,7 @@ const EtaRequest = z.object({
         routeUid: z.string().optional(),
         subRouteUid: z.string().optional(),
         direction: z.number().int().optional(),
+        toStopUid: z.string().min(1).optional(),
       }),
     )
     .max(50),

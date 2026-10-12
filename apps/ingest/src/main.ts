@@ -3,7 +3,8 @@ import { BikeStore } from "./bike/store";
 import { BusEtaStore } from "./bus/eta-store";
 import { estimatedCallsPerMinute, loadConfig } from "./config";
 import { gtfsPaths, readIfExists } from "./gtfs/files";
-import { buildTraIndexFromZip, emptyTraIndex } from "./gtfs/tra-index";
+import { loadGtfsIndexes } from "./gtfs/indexes";
+import { emptyTraIndex } from "./gtfs/tra-index";
 import { buildJobs, type State } from "./jobs";
 import { HealthRegistry } from "./lib/health";
 import { Scheduler } from "./lib/scheduler";
@@ -29,14 +30,17 @@ async function main() {
 
   const national = await readIfExists(gtfsPaths(config.DATA_DIR).national);
   if (national) {
-    state.traIndex = buildTraIndexFromZip(national.data);
+    const indexes = loadGtfsIndexes(national.data);
+    state.traIndex = indexes.tra;
+    state.busEta.setStopRoutes(indexes.busStopRoutes);
     log.info(
       {
         trains: state.traIndex.tripIdsByTrainNo.size,
         stations: state.traIndex.stopIdByStationId.size,
         tripsWithStops: state.traIndex.stopsByTripId.size,
+        busStops: indexes.busStopRoutes.size,
       },
-      "loaded TRA index from GTFS",
+      "loaded TRA and bus stop indexes from GTFS",
     );
   } else {
     log.warn("no GTFS bundle found; TRA delays will not be mapped until `pnpm fetch-gtfs` has run");

@@ -6,6 +6,11 @@ export interface EtaQuery {
   subRouteUid?: string;
   /** TDX direction: 0 outbound, 1 inbound, 2 loop. */
   direction?: number;
+  /**
+   * Where the rider gets off (trip legs). A route-level ETA at a stop several variants serve is
+   * still right for the leg when every one of those variants also stops here: any of them will do.
+   */
+  toStopUid?: string;
 }
 
 export interface EtaResult {
@@ -51,6 +56,22 @@ export class SubRouteIndex {
       ...(this.byRouteDir.get(`${routeUid}|*`) ?? []),
     ]);
   }
+}
+
+/**
+ * Of a route's variants in a direction, those that stop at this stop according to the GTFS
+ * (`served`: `<SubRouteUID>|<Direction>` keys at the stop). 685 and 685經吉林 share many stops but
+ * not all; at a stop only one of them serves, a route-level ETA can only be for that one. Without
+ * stop data, or when the GTFS lists none of the variants there, all variants are kept.
+ */
+export function variantsAtStop(
+  all: ReadonlySet<string>,
+  direction: number,
+  served: ReadonlySet<string> | undefined,
+): ReadonlySet<string> {
+  if (!served || all.size <= 1) return all;
+  const here = new Set([...all].filter((s) => served.has(`${s}|${direction}`)));
+  return here.size > 0 ? here : all;
 }
 
 /** The fields of an ETA row that decide which GTFS route it belongs to. */
@@ -103,6 +124,13 @@ export class BusEtaStore {
     return new Set();
   };
 
+  /** Bus sub-routes serving each stop, from the GTFS (see `variantsAtStop`). */
+  private stopRoutes: ReadonlyMap<string, ReadonlySet<string>> = new Map();
+
+  setStopRoutes(index: ReadonlyMap<string, ReadonlySet<string>>): void {
+    this.stopRoutes = index;
+  }
+
   replace(feed: string, rows: TdxBusEta[]): number {
     const byStop = new Map<string, EtaResult[]>();
     for (const r of rows) {
@@ -137,9 +165,20 @@ export class BusEtaStore {
 
   /** Best match for a stop + route (+ direction); see `etaServesSubRoute` for the route rule. */
   find(q: EtaQuery): EtaResult | null {
+    const served = this.stopRoutes.get(q.stopUid);
+    const alighting = q.toStopUid ? this.stopRoutes.get(q.toStopUid) : undefined;
+    const variantsHere: VariantLookup = (route, direction) => {
+      const here = variantsAtStop(this.variantsOf(route, direction), direction, served);
+      // Several variants here, all going to the rider's stop: whichever comes next is the one to take.
+      if (here.size > 1 && served && alighting && q.subRouteUid && here.has(q.subRouteUid)) {
+        const all = [...here].every((v) => alighting.has(`${v}|${direction}`));
+        if (all) return new Set([q.subRouteUid]);
+      }
+      return here;
+    };
     const candidates = this.atStop(q.stopUid).filter(
       (e) =>
-        (q.subRouteUid ? etaServesSubRoute(e, q.subRouteUid, this.variantsOf) : true) &&
+        (q.subRouteUid ? etaServesSubRoute(e, q.subRouteUid, variantsHere) : true) &&
         (q.routeUid ? e.routeUid === q.routeUid || e.subRouteUid === q.routeUid : true) &&
         (q.direction === undefined ? true : e.direction === q.direction),
     );

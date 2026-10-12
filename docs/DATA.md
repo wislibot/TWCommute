@@ -133,3 +133,21 @@ Fixed the same day, and re-checked on the real stack at 11:45:
 | Taipei Main → Tamsui, 90 min near Dihua St | ✅ **4.8 s**, 5 options: YouBike to Dihua St, stays of 95–131 min (the next departures after the stay), YouBike + metro to Tamsui. The API now plans one plain OTP search per segment and joins them (`apps/api/src/plan/chain.ts`) |
 | Same with a second stop, Dadaocheng Wharf for 30 min, walking only | ✅ 2.5 s, 5 options, stays 90 and 35–62 min |
 | Duplicates | ✅ `prepare-otp` leaves out agency `TRTC` from the national feed (24 routes, 4,789 trips, 121 stops); Taipei Metro trips now come once, from Taipei Metro's own feed, with TPASS coverage on every option |
+
+### Bus ETAs in daytime — 2026-10-12 12:20–12:40 Taipei (Monday)
+
+`AUDIT_CITIES=Taipei,NewTaipei pnpm --filter @twc/ingest audit` (15 TDX calls, all 200):
+
+| | Taipei | New Taipei | Intercity |
+| --- | --- | --- | --- |
+| ETA rows (one per stop, route, direction) | 28,811 | 32,961 | 59,741 |
+| With an estimate | 68.6% | 64.1% | 15.5% |
+| Data age (p50 / p90) | 9 s / 9 s | 7 s / 7 s | 18 s / 18 s (max ~2 h) |
+| Rows the live lookup can join, route-level rule only | 64.4% | 75.9% | 100% |
+| … with the GTFS stop index (variant serving the stop) | **71.9%** | **80.8%** | 100% |
+
+Taipei and New Taipei rows name only their route. A route often has several variants (685 and 685經吉林); attaching a route's ETA to the wrong variant would send riders the wrong way, so a row is joined only when one variant serves its stop (from GTFS stop_times), or, for a trip leg, when every variant serving the stop also stops where the rider gets off. Of Taipei's unjoined rows, 15.7 points are stops no GTFS trip serves (they cannot appear in a plan or board anyway) and 12.4 points are stops shared by several variants.
+
+On trip legs (12 bus-only plans across Taipei, 64 distinct bus legs leaving within 45 minutes): 17 carry a live ETA. Of the rest, 31 board a later bus than the next one (TDX only predicts the next bus, so those stay scheduled by design), 7 are intercity or New Taipei routes (not polled on the free plan), 5 are buses that have not left their terminal (no estimate), and 4 are still ambiguous variants. So when the leg is the next bus of a polled route, about 80% show live data.
+
+Ingest now also indexes bus stops from the GTFS at start-up: ~95 s and 2.0 GB resident (was ~45 s and 1.7 GB); 109,123 bus stops.

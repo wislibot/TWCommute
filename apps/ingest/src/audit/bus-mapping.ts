@@ -1,5 +1,5 @@
 import type { TdxBusEta, TdxBusRoute, TdxBusStop } from "@twc/tdx";
-import { etaServesSubRoute, SubRouteIndex } from "../bus/eta-store";
+import { etaServesSubRoute, SubRouteIndex, variantsAtStop } from "../bus/eta-store";
 import { ageSeconds, countBy, pct, percentiles } from "./stats";
 import type { BusMappingResult, EtaQualityResult, GtfsIdIndex, Pct } from "./types";
 
@@ -49,6 +49,7 @@ export function analyzeBusMapping(
   stops: TdxBusStop[],
   routes: TdxBusRoute[],
   etas: TdxBusEta[],
+  stopRoutes?: ReadonlyMap<string, ReadonlySet<string>>,
 ): BusMappingResult {
   const uStops = uniqueBy(stops, (s) => idOf(s.StopUID));
   const uRoutes = uniqueBy(routes, (r) => idOf(r.RouteUID));
@@ -71,11 +72,13 @@ export function analyzeBusMapping(
   const subRouteUidInGtfs = share(subRoutes, (s) => has(index.routeIds, idOf(s.SubRouteUID)));
   const subRouteDirInGtfs = share(subRoutes, (s) => has(index.routeIds, routeKey(s.SubRouteUID, s.Direction)));
   const routeList = new SubRouteIndex(uRoutes);
-  const variantsOf = (route: string, direction: number) => routeList.variants(route, direction);
+  const variantsAt = (stopUid: string) => (route: string, direction: number) =>
+    variantsAtStop(routeList.variants(route, direction), direction, stopRoutes?.get(stopUid));
   // Production rule: tdxRouteKey (apps/api/src/lib/ids.ts) + etaServesSubRoute (BusEtaStore.find).
   const joinable = (e: TdxBusEta) => {
     if (!has(index.stopIds, idOf(e.StopUID))) return false;
     const row = { routeUid: idOf(e.RouteUID), subRouteUid: idOf(e.SubRouteUID) || undefined, direction: e.Direction };
+    const variantsOf = variantsAt(idOf(e.StopUID));
     const keys = row.subRouteUid ? [row.subRouteUid] : [row.routeUid, ...variantsOf(row.routeUid, e.Direction)];
     return keys.some(
       (k) =>

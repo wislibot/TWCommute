@@ -24,8 +24,8 @@ import {
 } from "@twc/tdx";
 import { downloadGtfs } from "../gtfs/download";
 import { gtfsPaths, readIfExists } from "../gtfs/files";
+import { loadGtfsIndexes } from "../gtfs/indexes";
 import { type OtpFeed, splitBundle } from "../gtfs/prepare-otp";
-import { buildTraIndexFromZip, type TraIndex } from "../gtfs/tra-index";
 import { analyzeBusMapping, analyzeEtaQuality } from "./bus-mapping";
 import { analyzeCityPrefixes, buildGtfsIdIndex, profileFeed } from "./gtfs-profile";
 import { renderMarkdown } from "./render";
@@ -113,6 +113,9 @@ async function main() {
     const prefixes = await step(`city prefixes ${feed.feedId}`, () => analyzeCityPrefixes(feed));
     if (prefixes) report.cityPrefix.push(prefixes);
   }
+  // TRA trips and stop patterns, and which bus variants serve each stop (both read from stop_times).
+  const gtfsIndexes = national ? await step("build GTFS indexes", () => loadGtfsIndexes(national.data)) : undefined;
+
   // Without GTFS every id would look unmatched, so the mapping check is skipped rather than reported as 0%.
   const index = feeds.length > 0 ? await step("index GTFS ids", () => buildGtfsIdIndex(feeds)) : undefined;
   if (!index) report.errors.push("bus id mapping: skipped, no GTFS feeds loaded");
@@ -124,12 +127,13 @@ async function main() {
     if (!index || !etas) continue;
     const stops = await step(`bus stops ${city}`, () => getBusStops(tdx, city));
     const routes = await step(`bus routes ${city}`, () => getBusRoutes(tdx, city));
-    if (stops && routes) report.busMapping.push(analyzeBusMapping(city, index, stops, routes, etas));
+    if (stops && routes) {
+      report.busMapping.push(analyzeBusMapping(city, index, stops, routes, etas, gtfsIndexes?.busStopRoutes));
+    }
   }
 
   // TRA: can live delays be mapped onto GTFS trips and stops?
-  let traIndex: TraIndex | null = null;
-  if (national) traIndex = (await step("build TRA index", () => buildTraIndexFromZip(national.data))) ?? null;
+  const traIndex = gtfsIndexes?.tra ?? null;
   const delays = await step("TRA live delays", () => getTraLiveTrainDelay(tdx));
   const stations = await step("TRA stations", () => getTraStations(tdx));
   if (delays && stations) report.tra = analyzeTra(traIndex, delays, stations, Date.now());

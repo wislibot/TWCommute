@@ -16,7 +16,11 @@ const busLegIndex = 4;
 
 describe("live bus overlay", () => {
   it("derives TDX ids from OTP ids", () => {
-    expect(etaQueryForLeg(legAt(busLegIndex))).toEqual({ stopUid: "TPE10001", subRouteUid: "TPE10307" });
+    expect(etaQueryForLeg(legAt(busLegIndex))).toEqual({
+      stopUid: "TPE10001",
+      subRouteUid: "TPE10307",
+      toStopUid: "TPE10002",
+    });
     expect(etaQueryForLeg(legAt(1))).toBeNull();
   });
 
@@ -25,7 +29,7 @@ describe("live bus overlay", () => {
       .fn()
       .mockResolvedValue([{ etaSeconds: 360, asOf: "2026-10-11T11:00:00+08:00", isLastBus: false }]);
     const [out] = await overlayLiveBus([base], { busEta }, new Date("2026-10-11T11:00:00+08:00"), 45);
-    expect(busEta).toHaveBeenCalledWith([{ stopUid: "TPE10001", subRouteUid: "TPE10307" }]);
+    expect(busEta).toHaveBeenCalledWith([{ stopUid: "TPE10001", subRouteUid: "TPE10307", toStopUid: "TPE10002" }]);
     expect(out?.legs[busLegIndex]).toMatchObject({ realtime: "live", live: { etaSeconds: 360, source: "tdx-eta" } });
   });
 

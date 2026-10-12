@@ -223,6 +223,16 @@ describe("analyzeBusMapping", () => {
       [{ StopUID: "TPE12478", RouteUID: "TPE10811", Direction: 0 }],
     );
     expect(r).toMatchObject({ etaRows: 1, etaJoinable: 0 });
+    // With the GTFS stop index: if only 685經吉林 stops here, the row is that variant's.
+    const atJilin = analyzeBusMapping(
+      "Taipei",
+      idx,
+      [stop("TPE12478", "12478")],
+      [{ RouteUID: "TPE10811", RouteID: "10811", RouteName: {}, SubRoutes: [sub("TPE10811"), sub("TPE159203")] }],
+      [{ StopUID: "TPE12478", RouteUID: "TPE10811", Direction: 0 }],
+      new Map([["TPE12478", new Set(["TPE159203|0"])]]),
+    );
+    expect(atJilin).toMatchObject({ etaRows: 1, etaJoinable: 100 });
   });
 
   it("returns null percentages for empty inputs and tolerates junk rows", () => {

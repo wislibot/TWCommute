@@ -135,3 +135,73 @@ describe("BusEtaStore when a variant reuses the route's own id (live TDX data)",
     expect(store.find({ stopUid: "TXG1", subRouteUid: "TXG1052", direction: 0 })?.etaSeconds).toBe(120);
   });
 });
+
+describe("BusEtaStore with the GTFS stop index", () => {
+  const routes = [
+    {
+      RouteUID: "TPE10811",
+      RouteID: "10811",
+      RouteName: { Zh_tw: "685" },
+      SubRoutes: [
+        { SubRouteUID: "TPE10811", SubRouteID: "10811", Direction: 0 },
+        { SubRouteUID: "TPE159203", SubRouteID: "159203", Direction: 0 },
+      ],
+    },
+  ];
+  const store = new BusEtaStore();
+  store.setRoutes("Taipei", routes);
+  store.replace("Taipei", [
+    { StopUID: "SHARED", RouteUID: "TPE10811", Direction: 0, EstimateTime: 120 },
+    { StopUID: "JILIN", RouteUID: "TPE10811", Direction: 0, EstimateTime: 300 },
+  ]);
+  // Both variants stop at SHARED; only 685經吉林 (TPE159203) stops at JILIN.
+  store.setStopRoutes(
+    new Map([
+      ["SHARED", new Set(["TPE10811|0", "TPE159203|0"])],
+      ["JILIN", new Set(["TPE159203|0"])],
+    ]),
+  );
+
+  it("matches a route-level row at a stop only one variant serves", () => {
+    expect(store.find({ stopUid: "JILIN", subRouteUid: "TPE159203", direction: 0 })?.etaSeconds).toBe(300);
+    expect(store.find({ stopUid: "JILIN", subRouteUid: "TPE10811", direction: 0 })).toBeNull();
+  });
+
+  it("still does not guess at a stop both variants serve", () => {
+    expect(store.find({ stopUid: "SHARED", subRouteUid: "TPE10811", direction: 0 })).toBeNull();
+    expect(store.find({ stopUid: "SHARED", subRouteUid: "TPE159203", direction: 0 })).toBeNull();
+  });
+});
+
+describe("BusEtaStore for a trip leg at a stop several variants serve", () => {
+  const store = new BusEtaStore();
+  store.setRoutes("Taipei", [
+    {
+      RouteUID: "TPE10811",
+      RouteID: "10811",
+      RouteName: { Zh_tw: "685" },
+      SubRoutes: [
+        { SubRouteUID: "TPE10811", SubRouteID: "10811", Direction: 0 },
+        { SubRouteUID: "TPE159203", SubRouteID: "159203", Direction: 0 },
+      ],
+    },
+  ]);
+  store.replace("Taipei", [{ StopUID: "SHARED", RouteUID: "TPE10811", Direction: 0, EstimateTime: 120 }]);
+  store.setStopRoutes(
+    new Map([
+      ["SHARED", new Set(["TPE10811|0", "TPE159203|0"])],
+      ["BOTH_LATER", new Set(["TPE10811|0", "TPE159203|0"])],
+      ["JILIN", new Set(["TPE159203|0"])],
+    ]),
+  );
+
+  it("uses the route's next bus when every variant here also stops where the rider gets off", () => {
+    const q = { stopUid: "SHARED", subRouteUid: "TPE10811", direction: 0, toStopUid: "BOTH_LATER" };
+    expect(store.find(q)?.etaSeconds).toBe(120);
+  });
+
+  it("does not when only some variants go there, or without the alighting stop", () => {
+    expect(store.find({ stopUid: "SHARED", subRouteUid: "TPE159203", direction: 0, toStopUid: "JILIN" })).toBeNull();
+    expect(store.find({ stopUid: "SHARED", subRouteUid: "TPE10811", direction: 0 })).toBeNull();
+  });
+});

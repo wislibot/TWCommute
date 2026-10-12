@@ -15,7 +15,8 @@ export function etaQueryForLeg(leg: Leg): EtaQuery | null {
   const stopUid = localId(leg.from.stopId);
   const route = tdxRouteKey(leg.route?.id);
   if (!stopUid || !route) return null;
-  return { stopUid, ...route };
+  const toStopUid = localId(leg.to.stopId);
+  return { stopUid, ...route, ...(toStopUid ? { toStopUid } : {}) };
 }
 
 function isLeavingSoon(leg: Leg, now: Date, windowMinutes: number): boolean {
