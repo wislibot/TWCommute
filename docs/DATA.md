@@ -31,7 +31,7 @@ Run `pnpm --filter @twc/ingest audit` with real credentials: it measures items 1
 
 1. **Download and inspect GTFS.** Run `pnpm --filter @twc/ingest fetch-gtfs`, read `data/gtfs/manifest.json`: is the national file one feed or a zip of zips? Then run `prepare-otp`: which feed ids come out, and is the TRA feed detected?
 2. **Validate GTFS** with the MobilityData validator. Note errors that block OTP (missing `stop_times`, `frequencies.txt` use for buses, calendar coverage).
-3. **Build the graph.** First a Greater Taipei extract (`BBOX=121.28,24.85,121.80,25.30 infra/scripts/fetch-data.sh`), then all of Taiwan on a 32 GB machine. Record memory and time.
+3. **Build the graph.** ✅ All of Taiwan builds in 17 min with 12 GB of memory (results below). A Greater Taipei extract (`BBOX=121.28,24.85,121.80,25.30 infra/scripts/fetch-data.sh`) is still handy for development.
 4. **Check id mapping assumptions** (code depends on these):
    - Bus `stop_id` = TDX `StopUID`; `route_id` = `<SubRouteUID>_<Direction>` (`apps/api/src/lib/ids.ts`, `apps/api/src/plan/live-overlay.ts`). Measure: % of ETA rows the lookup can join.
    - TDX city codes prefix bus `stop_id`s (`TPE…`, `NWT…`) (`packages/fares/src/cities.ts`). Measure: % of TPASS results that are `unknown`.
@@ -97,3 +97,33 @@ Audited Taipei, New Taipei, Taichung, Kaohsiung and intercity buses; raw report 
 | A `service_id` per trip: 187,930 ids for only 445 distinct calendars | 187,485 merged | not an error, but OTP 2.10 copies its service map for each id (`TripCalendars.withServiceCode`); the build sat there for 20+ minutes without finishing | give ids with identical `calendar.txt` and `calendar_dates.txt` rows one id (each trip keeps its dates) |
 
 Not repaired, as OTP tolerates them: 8 trips whose `shape_id` (`NTMC_LB01_LB12_0`, `NTMC_LB12_LB01_1`) is not in `shapes.txt`, and `is_bidirectional` values 2, 4 and 11 in a few pathways.
+
+**Build and serve** (4 CPUs, 16 GB RAM, `OTP_HEAP=12g` for builds, `10g` to serve)
+
+| Step | Time | Peak memory | Output |
+| --- | --- | --- | --- |
+| `prepare-otp` (fare files dropped, repairs above) | ~1 min | — | `tw.gtfs.zip` 88.5 MB, `trtc.gtfs.zip` 1.2 MB |
+| Street graph from OSM (`otp-local.sh street`) | 4 min | 11.2 GB | `streetGraph.obj` 245 MB; 1.45M vertices, 3.74M edges |
+| Transit on top (`otp-local.sh transit`) | 15 min | 11.1 GB | `graph.obj` 1.6 GB; 156,586 stops, 7,974 patterns |
+| One-step build (`build`) | 17 min | 12.0 GB | same graph |
+| OTP serve: load the graph and start updaters | 50–96 s | 7.5–9.3 GB resident | |
+| Ingest start: read the national GTFS, TRA stop patterns | ~45 s | 1.7 GB resident | 1,010 trains, 245 stations, 53,467 TRA trips with stop patterns |
+
+All of Taiwan builds on a 16 GB machine; the street graph only changes with OSM, so nightly GTFS updates need only the 15-minute transit step.
+
+### Real stack — 2026-10-12 11:15–11:40 Taipei (Monday)
+
+Real ingest (TDX free plan, Taipei, ≈2 calls/minute), OTP with the full-Taiwan graph, API; `/v1/*` calls.
+
+| Check | Result |
+| --- | --- |
+| YouBike docks in OTP (GBFS from ingest) | ✅ **1,815** Taipei YouBike 2.0 stations; `/v1/bikes` returns 1,604 in a central Taipei box |
+| TRA delays (GTFS-RT from ingest) | ✅ ~145 of ~150 running trains matched each poll, ~30 of them via the next stop (express passing the reported station); 5 trains not in today's GTFS. In OTP, 8 of 8 sampled delayed trips show the delay (`UPDATED`) at the reported stop and at their last stop |
+| Taipei Main Station → Tamsui | ✅ 48–49 min by metro, 2.3–3 s per plan |
+| YouBike trip (City Hall → NTU) | ✅ 5 of 5 itineraries use YouBike; dock risk on bike legs; bus 284 legs carry the live TDX ETA (`eta=305s`) |
+| Departures at the Taipei Main Station (忠孝) bus stops | ✅ live TDX ETAs on 4 of 5 boards (e.g. 262 in 47 s, 218 in 12 min), 20–40 ms per board |
+| Search 「台北車站」 | ✅ the metro station first |
+| Taipei Main → Tamsui, 90 min near Dihua St (via) | ❌ **18–24 s** per plan on the full graph (vs 2–5 s without a via), so OTP's 7 s limit returns nothing. Results are right when given time (bus to Dihua St, ~90 min there, bus/metro on). Same with a stop via or a 20-minute search window |
+| Duplicates | ❌ Taipei Metro is in both feeds (`trtc` and agency `TRTC` in the national feed), so every metro trip comes back twice |
+
+Follow-ups from this run: plan vias as chained searches in the API instead of one OTP via search, and drop the `TRTC` agency from the national feed (the separate `trtc` feed has more trips, line names and colours, and TPASS coverage).
