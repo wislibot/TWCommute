@@ -47,7 +47,11 @@
         "expo-build-properties",
         {
           "android": {
-            "usesCleartextTraffic": true
+            "usesCleartextTraffic": true,
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "useLegacyPackaging": true,
+            "extraProguardRules": "# Shrink unused library code only: no renaming, and React Native, Expo and MapLibre classes kept whole.\n-dontobfuscate\n-keep class com.facebook.** { *; }\n-keep class expo.modules.** { *; }\n-keep class org.maplibre.** { *; }\n-keep class com.swmansion.** { *; }\n-keep class com.th3rdwave.** { *; }\n-keep class com.reactnativecommunity.** { *; }\n-keep class org.reactnative.** { *; }\n-keep class app.twcommute.** { *; }\n-keep class kotlin.Metadata { *; }\n-keep class kotlin.reflect.** { *; }"
           }
         }
       ]
