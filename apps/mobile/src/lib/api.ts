@@ -9,6 +9,7 @@ import type {
   StopSummary,
 } from "@twc/contracts";
 import { API_URL } from "./config";
+import { settingsLoaded, useSettings } from "./store";
 
 export class ApiError extends Error {
   constructor(
@@ -21,9 +22,11 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  await settingsLoaded();
+  const base = useSettings.getState().apiUrl ?? API_URL;
   let res: Response;
   try {
-    res = await fetch(`${API_URL}${path}`, {
+    res = await fetch(`${base}${path}`, {
       ...init,
       headers: { accept: "application/json", ...(init?.body ? { "content-type": "application/json" } : {}) },
     });

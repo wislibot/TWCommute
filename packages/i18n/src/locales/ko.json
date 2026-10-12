@@ -94,11 +94,16 @@
     "title": "설정",
     "language": "언어",
     "tpassPass": "내 TPASS 정기권",
+    "server": "서버",
+    "serverHint": "TWCommute 백엔드를 실행하는 컴퓨터의 주소예요. 예: http://192.168.1.20:3000. 비워 두면 기본 주소를 사용해요.",
+    "serverSave": "저장",
+    "serverSaved": "저장했어요.",
+    "serverInvalid": "올바른 서버 주소가 아니에요. 예: http://192.168.1.20:3000",
     "about": "정보",
     "dataSource": "교통 데이터 출처: 交通部運輸資料流通服務平臺 (교통부 TDX). 지도 데이터 © OpenStreetMap contributors."
   },
   "errors": {
-    "network": "TWCommute에 연결할 수 없어요. 네트워크를 확인해 주세요.",
+    "network": "TWCommute 서버에 연결할 수 없어요. 네트워크와 설정의 서버 주소를 확인해 주세요.",
     "generic": "문제가 발생했어요."
   }
 }

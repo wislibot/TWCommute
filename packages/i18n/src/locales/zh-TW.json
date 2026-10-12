@@ -94,11 +94,16 @@
     "title": "設定",
     "language": "語言",
     "tpassPass": "我的 TPASS 月票",
+    "server": "伺服器",
+    "serverHint": "執行 TWCommute 後端的電腦位址，例如 http://192.168.1.20:3000。留空則使用內建位址。",
+    "serverSave": "儲存",
+    "serverSaved": "已儲存。",
+    "serverInvalid": "這不是有效的伺服器位址。範例：http://192.168.1.20:3000",
     "about": "關於",
     "dataSource": "交通資料來源：交通部運輸資料流通服務平臺（TDX）。地圖資料 © OpenStreetMap 貢獻者。"
   },
   "errors": {
-    "network": "無法連線至 TWCommute，請檢查網路連線。",
+    "network": "無法連線至 TWCommute 伺服器，請檢查網路連線及設定中的伺服器位址。",
     "generic": "發生錯誤。"
   }
 }

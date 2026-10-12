@@ -94,11 +94,16 @@
     "title": "Settings",
     "language": "Language",
     "tpassPass": "My TPASS pass",
+    "server": "Server",
+    "serverHint": "Address of the computer running the TWCommute backend, for example http://192.168.1.20:3000. Leave it empty to use the built-in address.",
+    "serverSave": "Save",
+    "serverSaved": "Saved.",
+    "serverInvalid": "That isn't a server address. Example: http://192.168.1.20:3000",
     "about": "About",
     "dataSource": "Transit data source: 交通部運輸資料流通服務平臺 (Ministry of Transportation and Communications, Transport Data eXchange). Map data © OpenStreetMap contributors."
   },
   "errors": {
-    "network": "Can't reach TWCommute. Check your connection.",
+    "network": "Can't reach the TWCommute server. Check your connection and the server address in Settings.",
     "generic": "Something went wrong."
   }
 }

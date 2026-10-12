@@ -42,6 +42,14 @@
         {
           "locationWhenInUsePermission": "TWCommute uses your location to plan trips from where you are and show nearby stops and YouBike stations."
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
       ]
     ],
     "experiments": {

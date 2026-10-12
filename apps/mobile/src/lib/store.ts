@@ -7,19 +7,40 @@ interface SettingsState {
   /** null = follow the device language. */
   locale: Locale | null;
   tpassId: string | null;
+  /** Backend address entered in Settings; null = the built-in API_URL. */
+  apiUrl: string | null;
   setLocale: (locale: Locale | null) => void;
   setTpassId: (id: string | null) => void;
+  setApiUrl: (url: string | null) => void;
 }
+
+let markLoaded: () => void = () => {};
+const loaded = new Promise<void>((resolve) => {
+  markLoaded = resolve;
+});
+
+/**
+ * Resolves once saved settings have been read from storage (or failed to read), so the first
+ * requests after launch go to the saved server.
+ */
+export const settingsLoaded = () => loaded;
 
 export const useSettings = create<SettingsState>()(
   persist(
     (set) => ({
       locale: null,
       tpassId: null,
+      apiUrl: null,
       setLocale: (locale) => set({ locale }),
       setTpassId: (tpassId) => set({ tpassId }),
+      setApiUrl: (apiUrl) => set({ apiUrl }),
     }),
-    { name: "twc-settings", storage: createJSONStorage(() => AsyncStorage) },
+    {
+      name: "twc-settings",
+      storage: createJSONStorage(() => AsyncStorage),
+      // The returned callback runs after loading, whether it succeeded or failed.
+      onRehydrateStorage: () => () => markLoaded(),
+    },
   ),
 );
 

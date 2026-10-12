@@ -94,11 +94,16 @@
     "title": "設定",
     "language": "言語",
     "tpassPass": "TPASS定期券",
+    "server": "サーバー",
+    "serverHint": "TWCommuteのバックエンドを動かしているコンピューターのアドレス（例：http://192.168.1.20:3000）。空欄にすると既定のアドレスを使います。",
+    "serverSave": "保存",
+    "serverSaved": "保存しました。",
+    "serverInvalid": "サーバーアドレスの形式ではありません。例：http://192.168.1.20:3000",
     "about": "このアプリについて",
     "dataSource": "交通データ提供：交通部運輸資料流通服務平臺（交通部 TDX）。地図データ © OpenStreetMap contributors。"
   },
   "errors": {
-    "network": "TWCommuteに接続できません。通信環境をご確認ください。",
+    "network": "TWCommuteのサーバーに接続できません。通信環境と、設定のサーバーアドレスをご確認ください。",
     "generic": "エラーが発生しました。"
   }
 }
