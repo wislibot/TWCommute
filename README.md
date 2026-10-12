@@ -39,7 +39,7 @@ pnpm check          # biome lint + typecheck + tests across the workspace
 
 1. Register at [TDX](https://tdx.transportdata.tw/register) and create an API key.
 2. `cp .env.example .env` and fill in `TDX_CLIENT_ID` / `TDX_CLIENT_SECRET`.
-3. `infra/scripts/fetch-data.sh` downloads GTFS and OSM into `data/`. Set `BBOX` for a smaller dev extract.
+3. `infra/scripts/fetch-data.sh` downloads GTFS and OSM into `data/`. `prepare-otp` repairs GTFS data errors that would abort OTP's build (see `docs/DATA.md`). Set `BBOX` for a smaller dev extract; `OSM_URL` to use your own Taiwan extract.
 4. `infra/scripts/build-graph.sh` builds the OTP graph.
 5. `docker compose -f infra/docker-compose.yml up -d`. The API is then on `:3000`, OTP on `:8080` (debug UI), ingest on `:8081`.
 

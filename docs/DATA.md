@@ -11,7 +11,7 @@ The first audit against live TDX data ran on 2026-10-11 (results below). Re-run 
 | Bus ETAs (N1) | TDX `/v2/Bus/EstimatedTimeOfArrival/City/{City}` and `/InterCity` | `$select` keeps payloads small. |
 | YouBike stations / availability | TDX `/v2/Bike/Station/City/{City}`, `/v2/Bike/Availability/City/{City}` | 15 cities; `ServiceType` 1/2/3 = YouBike 1.0/2.0/Moovo. |
 | TRA live delays | TDX `/v2/Rail/TRA/LiveTrainDelay` | Minutes late at the last station passed. |
-| Streets | OpenStreetMap via Geofabrik `asia/taiwan-latest.osm.pbf` | ODbL; attribution required. |
+| Streets | OpenStreetMap: Geofabrik `asia/taiwan-latest.osm.pbf`, or the openstreetmap.fr Asia file cut to `infra/osm/taiwan.geojson` (Taiwan, Penghu, Kinmen, Matsu) when Geofabrik is unreachable | ODbL; attribution required. `infra/scripts/fetch-data.sh` picks the source. |
 | Map tiles | OpenFreeMap (`EXPO_PUBLIC_MAP_STYLE_URL`) | OSM-based; attribution shown on the map. |
 
 TDX GTFS-Realtime is documented but its delivery is "in progress" (TDX GTFS docs, 資料更新與上架), which is why live data comes from the native APIs above.
@@ -80,3 +80,18 @@ Audited Taipei, New Taipei, Taichung, Kaohsiung and intercity buses; raw report 
 | Live ETA rows the lookup can join: Taichung, Kaohsiung, intercity | 0% | **100%** |
 | Same: Taipei, New Taipei (their ETA rows carry no `SubRouteUID`; joined through TDX route lists) | 0% | 28% → **100%** |
 | TRA live delays mapped to GTFS trips and stops | 0 / 51 | **50 / 50**; 1,010 trains, 245 stations, every TDX station mapped |
+
+### Graph build — 2026-10-12 (full Taiwan, OTP 2.10, 12 GB heap)
+
+**GTFS data errors.** OTP stops the whole build on the first bad row, and the TDX national feed had six kinds of them (the TRTC feed had none). `prepare-otp` now repairs them and logs each repair (`apps/ingest/src/gtfs/repair.ts`):
+
+| Problem in the TDX feed (2026-10-11 download) | Rows | OTP without the repair | Repair |
+| --- | --- | --- | --- |
+| `levels.txt` ids 573904/573905 listed twice (identical rows) | 2 | `DuplicateEntityException` | remove the repeats |
+| `stops.txt` `level_id` not in `levels.txt` (e.g. 573819) | 90 | `EntityReferenceNotFoundException` | clear `level_id` |
+| `pathways.txt` from/to a stop that does not exist (e.g. 541831009) | 89 | reference error | remove the pathway |
+| `pathways.txt` 6670 starts at a station (`location_type` 1), which GTFS forbids | 1 | `NullPointerException` in `PathwayMapper` | remove the pathway |
+| `trips.txt` on routes missing from `routes.txt` (`SHIP_NewTaipei_HalohaR101_0/1`) | 4 trips, 8 stop times | reference error | remove the trips and their stop times |
+| `stop_times.txt` Matsu buses with `departure_time` `15:15` instead of `15:15:00` (one-stop trips) | 104 | time parse error | complete to `HH:MM:00` |
+
+Not repaired, as OTP tolerates them: 8 trips whose `shape_id` (`NTMC_LB01_LB12_0`, `NTMC_LB12_LB01_1`) is not in `shapes.txt`, and `is_bidirectional` values 2, 4 and 11 in a few pathways.
