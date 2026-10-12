@@ -126,4 +126,10 @@ Real ingest (TDX free plan, Taipei, ≈2 calls/minute), OTP with the full-Taiwan
 | Taipei Main → Tamsui, 90 min near Dihua St (via) | ❌ **18–24 s** per plan on the full graph (vs 2–5 s without a via), so OTP's 7 s limit returns nothing. Results are right when given time (bus to Dihua St, ~90 min there, bus/metro on). Same with a stop via or a 20-minute search window |
 | Duplicates | ❌ Taipei Metro is in both feeds (`trtc` and agency `TRTC` in the national feed), so every metro trip comes back twice |
 
-Follow-ups from this run: plan vias as chained searches in the API instead of one OTP via search, and drop the `TRTC` agency from the national feed (the separate `trtc` feed has more trips, line names and colours, and TPASS coverage).
+Fixed the same day, and re-checked on the real stack at 11:45:
+
+| Check | Result |
+| --- | --- |
+| Taipei Main → Tamsui, 90 min near Dihua St | ✅ **4.8 s**, 5 options: YouBike to Dihua St, stays of 95–131 min (the next departures after the stay), YouBike + metro to Tamsui. The API now plans one plain OTP search per segment and joins them (`apps/api/src/plan/chain.ts`) |
+| Same with a second stop, Dadaocheng Wharf for 30 min, walking only | ✅ 2.5 s, 5 options, stays 90 and 35–62 min |
+| Duplicates | ✅ `prepare-otp` leaves out agency `TRTC` from the national feed (24 routes, 4,789 trips, 121 stops); Taipei Metro trips now come once, from Taipei Metro's own feed, with TPASS coverage on every option |

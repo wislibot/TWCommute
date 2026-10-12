@@ -47,12 +47,12 @@ type Answer = (vars: {
   origin: { label?: string };
   destination: { label?: string };
   dateTime: Record<string, string>;
-}) => OtpItinerary[] | { errors: { code: string; description: string }[] };
+}) => OtpItinerary[] | { options?: OtpItinerary[]; errors: { code: string; description: string }[] };
 
 function fakeOtp(answer: Answer) {
   const query = vi.fn(async (_q: string, vars: Record<string, unknown>): Promise<OtpPlanData> => {
     const out = answer(vars as Parameters<Answer>[0]);
-    const its = Array.isArray(out) ? out : [];
+    const its = Array.isArray(out) ? out : (out.options ?? []);
     return {
       planConnection: {
         routingErrors: Array.isArray(out) ? [] : out.errors,
@@ -101,9 +101,13 @@ describe("planWithStops (leaving at a time)", () => {
     const plan = await planWithStops(req, otp, now);
     expect(otp.query).toHaveBeenCalledTimes(2);
     // 09:05 option arrives 09:30 → ready 11:00 → 11:02; 09:20 option arrives 09:45 → ready 11:15 → 11:16.
+    // The list is filled up to five with later departures from the stop (longer stays).
     expect(plan.itineraries.map((it) => [it.start, it.end])).toEqual([
       [t("09:05"), t("11:55")],
+      [t("09:05"), t("12:05")],
+      [t("09:05"), t("12:25")],
       [t("09:20"), t("12:05")],
+      [t("09:20"), t("12:25")],
     ]);
     for (const it of plan.itineraries) {
       expect(stayAt(it.legs, it.legs, 0)).toBeGreaterThanOrEqual(90);
@@ -170,7 +174,11 @@ describe("planWithStops (several stops, arriving by, failures)", () => {
       vias: [{ place: V, dwellMinutes: 60 }],
     });
     const plan = await planWithStops(req, otp, now);
-    expect(plan.itineraries.map((it) => [it.start, it.end])).toEqual([[t("10:20"), t("12:55")]]);
+    // The one leaving last, plus the earlier departure as a longer stay at V; 10:40 arrives too late.
+    expect(plan.itineraries.map((it) => [it.start, it.end])).toEqual([
+      [t("10:00"), t("12:55")],
+      [t("10:20"), t("12:55")],
+    ]);
     expect(plan.previousCursor).toBe(`at:${t("12:54")}`);
   });
 
@@ -187,6 +195,20 @@ describe("planWithStops (several stops, arriving by, failures)", () => {
     );
     expect(plan.itineraries).toEqual([]);
     expect(plan.errors).toEqual([{ code: "NO_TRANSIT_CONNECTION", message: "Segment 2: No transit connection found" }]);
+  });
+
+  it("reports OTP's notes only for a segment that found no way", async () => {
+    const note = { code: "WALKING_BETTER_THAN_TRANSIT", description: "trivial distance" };
+    const req = PlanRequest.parse({ from: A, to: B, vias: [{ place: V, dwellMinutes: 30 }] });
+    const first = [option("A", "V", "09:05", "09:10", "09:25", "09:30")];
+    const withWay = fakeOtp((v) =>
+      v.origin.label === "A"
+        ? first
+        : { options: [option("V", "B", "10:05", "10:06", "10:07", "10:08")], errors: [note] },
+    );
+    expect((await planWithStops(req, withWay, now)).errors).toEqual([]);
+    const noWay = fakeOtp((v) => (v.origin.label === "A" ? first : { errors: [note] }));
+    expect((await planWithStops(req, noWay, now)).errors.map((e) => e.code)).toEqual(["WALKING_BETTER_THAN_TRANSIT"]);
   });
 
   it("removes options another one beats on both leaving and arrival time", async () => {

@@ -113,6 +113,24 @@ function keepBest(chains: Itinerary[][]): Itinerary[][] {
     .sort((a, b) => start(a) - start(b) || end(a) - end(b));
 }
 
+/**
+ * When few ways exist to reach the stops (a short walk or YouBike ride has one best option), fill
+ * the list with the next departures after the stay, i.e. longer stays at the last stop (or, arriving
+ * by a time, earlier departures before the first one), up to `FIRST_SEGMENT_OPTIONS` options.
+ */
+function withLongerStays(best: Itinerary[][], alternatives: (c: Itinerary[]) => Itinerary[][]): Itinerary[][] {
+  const out = [...best];
+  for (const c of best) {
+    for (const alt of alternatives(c)) {
+      if (out.length >= FIRST_SEGMENT_OPTIONS) break;
+      out.push(alt);
+    }
+  }
+  const start = (c: Itinerary[]) => startOf(c[0] as Itinerary);
+  const end = (c: Itinerary[]) => endOf(c.at(-1) as Itinerary);
+  return out.sort((a, b) => start(a) - start(b) || end(a) - end(b));
+}
+
 export async function planWithStops(req: PlanRequest, otp: Pick<OtpClient, "query">, now: Date): Promise<ChainedPlan> {
   const places = [req.from, ...req.vias.map((v) => v.place), req.to];
   const stayMs = req.vias.map((v) => v.dwellMinutes * 60_000);
@@ -132,36 +150,58 @@ export async function planWithStops(req: PlanRequest, otp: Pick<OtpClient, "quer
       },
       segment,
     );
-    errors.push(...result.errors);
+    // OTP also reports notes alongside results (e.g. WALKING_BETTER_THAN_TRANSIT for a short hop
+    // between two stops); only a segment with no way through explains a failed plan.
+    if (result.options.length === 0) errors.push(...result.errors);
     return result.options;
   };
 
   let chains: Itinerary[][];
+  // The segment searched last and how each chain may extend it: used to offer longer stays.
+  let alternatives: (c: Itinerary[]) => Itinerary[][] = () => [];
   if (!req.arriveBy) {
     chains = (await search(0, time, false, FIRST_SEGMENT_OPTIONS)).map((o) => [o]);
     for (let s = 1; s < segments && chains.length > 0; s++) {
-      const ready = (c: Itinerary[]) => endOf(c.at(-1) as Itinerary) + (stayMs[s - 1] ?? 0);
+      const ready = (head: Itinerary[]) => endOf(head.at(-1) as Itinerary) + (stayMs[s - 1] ?? 0);
       const earliest = Math.min(...chains.map(ready));
       const options = await search(s, toTaipeiIso(new Date(earliest)), false, LATER_SEGMENT_OPTIONS);
       chains = chains.flatMap((c) => {
         const next = firstToArrive(options, ready(c));
         return next ? [[...c, next]] : [];
       });
+      if (s === segments - 1) {
+        alternatives = (c) => {
+          const head = c.slice(0, -1);
+          return options
+            .filter((o) => o !== c.at(-1) && startOf(o) >= ready(head))
+            .sort((a, b) => startOf(a) - startOf(b))
+            .map((o) => [...head, o]);
+        };
+      }
     }
   } else {
     chains = (await search(segments - 1, time, true, FIRST_SEGMENT_OPTIONS)).map((o) => [o]);
     for (let s = segments - 2; s >= 0 && chains.length > 0; s--) {
-      const leaveBy = (c: Itinerary[]) => startOf(c[0] as Itinerary) - (stayMs[s] ?? 0);
+      const leaveBy = (tail: Itinerary[]) => startOf(tail[0] as Itinerary) - (stayMs[s] ?? 0);
       const latest = Math.max(...chains.map(leaveBy));
       const options = await search(s, toTaipeiIso(new Date(latest)), true, LATER_SEGMENT_OPTIONS);
       chains = chains.flatMap((c) => {
         const prev = lastToLeave(options, leaveBy(c));
         return prev ? [[prev, ...c]] : [];
       });
+      if (s === 0) {
+        alternatives = (c) => {
+          const tail = c.slice(1);
+          return options
+            .filter((o) => o !== c[0] && endOf(o) <= leaveBy(tail))
+            .sort((a, b) => startOf(b) - startOf(a))
+            .map((o) => [o, ...tail]);
+        };
+      }
     }
   }
 
-  const best = keepBest(chains);
+  const best = withLongerStays(keepBest(chains), alternatives);
   const itineraries = best.map(joinSegments);
   if (itineraries.length === 0 && errors.length === 0) {
     errors.push({ code: "NO_RESULT", message: "No connection keeps the requested stays" });
