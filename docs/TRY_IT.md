@@ -7,6 +7,8 @@ The backend runs on a Linux computer at home and the app runs on your Android ph
 
 All of Taiwan needs a 16 GB server, so this setup covers one region at a time. The steps below use Hsinchu; for Taipei, type `taipei` instead of `hsinchu`.
 
+**Backend on a server the phone can't reach directly?** For example, a headless Ubuntu server you manage over SSH. Do steps 1–3 on the server, then connect the phone [through your laptop](#server-elsewhere-connect-through-your-laptop-ssh-tunnel).
+
 ## What you need
 
 - **A Linux computer:** Ubuntu, Linux Mint or Debian, with 8 GB of RAM and 5 GB of free disk, on your home Wi-Fi or network.
@@ -16,7 +18,7 @@ All of Taiwan needs a 16 GB server, so this setup covers one region at a time. T
 
 ## 1. Install the tools
 
-Open a terminal (Ctrl+Alt+T) and run:
+Open a terminal on the computer (Ctrl+Alt+T). For a server, connect to it from your laptop instead: `ssh you@your-server` (on Windows, in PowerShell). Then run:
 
 ```bash
 sudo apt update
@@ -49,6 +51,12 @@ In `nano`:
 2. Save with Ctrl+O, then Enter.
 3. Exit with Ctrl+X.
 
+**For a server reached through an SSH tunnel,** also add this line, which keeps the app's API on the server only:
+
+```
+API_HOST=127.0.0.1
+```
+
 `.env` stays on your computer; git never uploads it.
 
 ## 3. Start the backend
@@ -72,7 +80,9 @@ In the app: Settings -> Server, enter:  http://192.168.1.20:3000
 
 Write down that address; yours will be different. The backend keeps running after the script ends, so you can close the terminal.
 
-**If your computer has a firewall turned on** (Ubuntu: `sudo ufw status` says `Status: active`), let the phone in:
+With `API_HOST=127.0.0.1` it prints the SSH tunnel command for your laptop instead: continue [there](#server-elsewhere-connect-through-your-laptop-ssh-tunnel).
+
+**If the phone connects to this computer directly and its firewall is on** (Ubuntu: `sudo ufw status` says `Status: active`), let the phone in:
 
 ```bash
 sudo ufw allow 3000/tcp
@@ -91,6 +101,50 @@ sudo ufw allow 3000/tcp
 1. Open TWCommute and allow location.
 2. Tap **⚙** (top right of the home screen).
 3. Under **Server**, type the address from step 3, for example `http://192.168.1.20:3000`, and tap **Save**.
+
+## Server elsewhere: connect through your laptop (SSH tunnel)
+
+Use this when the backend runs on a server the phone can't reach directly. The phone talks to your laptop, and the laptop forwards to the server over SSH:
+
+```
+phone ──Wi-Fi──▶ laptop, port 3000 ──SSH──▶ server (the API listens on the server only)
+```
+
+**On the server**, over SSH:
+- Do steps 1–3 with `API_HOST=127.0.0.1` in `.env`. The server then needs no open port except SSH, so skip the firewall step.
+- When it's ready, the script prints the tunnel command to run on your laptop.
+- The backend keeps running after you log out. After the server reboots, SSH in and run `infra/scripts/try-it.sh`.
+
+**On the Windows laptop**, in PowerShell (Windows 10 and 11 include `ssh`):
+
+1. **Start the tunnel**, and keep this window open while you use the app. It prints nothing while it works.
+   ```
+   ssh -N -o ServerAliveInterval=30 -o ExitOnForwardFailure=yes -L 0.0.0.0:3000:127.0.0.1:3000 you@your-server
+   ```
+   Add `-p 2222` (your port) if the server's SSH doesn't use port 22.
+2. **Let the phone in.**
+   - Set your Wi-Fi to **Private**: Settings → Network & internet → Wi-Fi → (your network) → Network profile type → Private.
+   - The first time, Windows Firewall asks about `ssh.exe` (OpenSSH SSH client): allow it on **private networks**.
+   - No prompt, or still blocked? Open PowerShell **as administrator** and run:
+     ```
+     New-NetFirewallRule -DisplayName "TWCommute tunnel" -Direction Inbound -Protocol TCP -LocalPort 3000 -Action Allow -Profile Private
+     ```
+3. **Find the laptop's address:** run `ipconfig` and look under **Wireless LAN adapter Wi-Fi** for **IPv4 Address**, e.g. `192.168.1.35`.
+4. **Check it.**
+   - In the laptop's browser, open `http://localhost:3000/v1/health`. It should show `{"status":"ok"…`.
+   - Then open `http://192.168.1.35:3000/v1/health` in the phone's browser.
+5. **In the app:** Settings → Server → `http://192.168.1.35:3000` → Save.
+
+**Keeping it working:**
+- Keep the laptop awake while you use the app: Settings → System → Power → Sleep → Never, while testing.
+- If the tunnel window closes (the laptop slept, or the Wi-Fi changed), run the command again.
+- If the laptop's address changes, update the app.
+
+| What you see | What to do |
+| --- | --- |
+| `bind [0.0.0.0]:3000: Address already in use` | Something on the laptop already uses port 3000. Use `-L 0.0.0.0:3001:127.0.0.1:3000`, port 3001 in the app, and `-LocalPort 3001` in the firewall rule. |
+| `channel 2: open failed: connect failed: Connection refused` in the tunnel window | The backend isn't running on the server: SSH in and run `infra/scripts/try-it.sh status`. |
+| It works on the laptop (`localhost`) but not on the phone | Your Wi-Fi is set to Public, or the firewall rule is missing. The phone must also be on the laptop's Wi-Fi. |
 
 ## 6. What to try in Hsinchu
 
@@ -111,7 +165,7 @@ sudo ufw allow 3000/tcp
 | --- | --- |
 | `infra/scripts/try-it.sh` | Start the region you used last, e.g. after a reboot (about 2–3 minutes) |
 | `infra/scripts/try-it.sh stop` | Stop everything |
-| `infra/scripts/try-it.sh status` | What is running, and how fresh each live feed is |
+| `infra/scripts/try-it.sh status` | What is running, how the phone connects (directly or through an SSH tunnel), and how fresh each live feed is |
 | `infra/scripts/try-it.sh rebuild` | Download fresh timetables and rebuild (do this weekly) |
 
 The computer must stay on and awake. Turn off automatic suspend (Settings → Power), and don't close a laptop's lid. After a reboot, run the first command again. Logs are in `data/run/`.
