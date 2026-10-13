@@ -42,8 +42,10 @@ OTP_JAR="${OTP_JAR:-$TOOLS/otp-shaded-$OTP_VERSION.jar}"
 INGEST_PORT=8081
 OTP_PORT=8080
 API_PORT=3000
-# Ingest listens on this computer only; the phone talks to the API.
+# Ingest and OpenTripPlanner listen on this computer only; the phone talks to the API. API_HOST=127.0.0.1
+# keeps the API on this computer too, for a server reached through an SSH tunnel (docs/TRY_IT.md).
 INGEST_LOCAL_URL="http://127.0.0.1:$INGEST_PORT"
+API_HOST="${API_HOST:-0.0.0.0}"
 SELF=infra/scripts/try-it.sh
 
 say() { printf '\n== %s\n' "$*"; }
@@ -295,22 +297,42 @@ start() {
   # OTP reads YouBike docks from ingest once at start-up and does not retry, so wait for them.
   wait_for ingest "Ingest" 420 ingest_ready
   say "Starting routing (OpenTripPlanner, about 1 minute)"
-  launch otp env OTP_DIR="$OTP_DIR" OTP_HEAP="$SERVE_HEAP" OTP_JAR="$OTP_JAR" JAVA="$JAVA" infra/scripts/otp-local.sh serve
+  launch otp env OTP_DIR="$OTP_DIR" OTP_HEAP="$SERVE_HEAP" OTP_JAR="$OTP_JAR" JAVA="$JAVA" OTP_BIND_ADDRESS=127.0.0.1 \
+    infra/scripts/otp-local.sh serve
   wait_for otp "OpenTripPlanner" 600 grep -q "Grizzly server running" "$RUN/otp.log"
   say "Starting the app's API"
-  launch api env HOST=0.0.0.0 PORT="$API_PORT" OTP_URL="http://127.0.0.1:$OTP_PORT/otp/gtfs/v1" \
+  launch api env HOST="$API_HOST" PORT="$API_PORT" OTP_URL="http://127.0.0.1:$OTP_PORT/otp/gtfs/v1" \
     INGEST_URL="$INGEST_LOCAL_URL" pnpm --filter @twc/api start
   wait_for api "API" 120 curl -fs "http://127.0.0.1:$API_PORT/v1/health"
-  local addr
-  addr="$(phone_ip)"
   say "Ready: $REGION_NAME"
+  how_to_connect
+  echo "Logs: $RUN/. Stop with: $SELF stop"
+}
+
+api_local_only() { case "$API_HOST" in 127.* | localhost | ::1) return 0 ;; *) return 1 ;; esac; }
+
+# What to type into the app: this computer's address, or, when the API listens here only, the SSH
+# tunnel to run on a laptop on the phone's Wi-Fi and the laptop's address.
+how_to_connect() {
+  local addr server
+  if api_local_only; then
+    # The address this SSH session came in on (SSH_CONNECTION: client port server port) is the one the
+    # laptop already uses.
+    server="$(awk '{ print $3 }' <<< "${SSH_CONNECTION:-}")"
+    [ -n "$server" ] || server="$(phone_ip)"
+    echo "The API listens on this server only (API_HOST=$API_HOST). On a laptop on your phone's Wi-Fi, run and keep open:"
+    echo "  ssh -N -o ServerAliveInterval=30 -o ExitOnForwardFailure=yes -L 0.0.0.0:$API_PORT:127.0.0.1:$API_PORT $(id -un)@${server:-THIS-SERVER}"
+    echo "In the app: Settings -> Server, enter:  http://LAPTOP-WIFI-IP:$API_PORT   (Windows: ipconfig; see docs/TRY_IT.md)"
+    return
+  fi
+  addr="$(phone_ip)"
   if [ -n "$addr" ]; then
     echo "In the app: Settings -> Server, enter:  http://$addr:$API_PORT"
   else
     echo "In the app: Settings -> Server, enter:  http://THIS-COMPUTER-IP:$API_PORT"
     echo "(This computer's IP was not found: look it up in its Wi-Fi settings, or run: ip -4 addr)"
   fi
-  echo "Phone and computer must be on the same Wi-Fi. Logs: $RUN/. Stop with: $SELF stop"
+  echo "Phone and computer must be on the same Wi-Fi."
 }
 
 stop() {
@@ -334,6 +356,7 @@ status() {
   for name in ingest otp api; do
     if running "$name"; then echo "$name: running"; else echo "$name: stopped"; fi
   done
+  if api_local_only; then echo "phone access: through an SSH tunnel (API_HOST=$API_HOST)"; else echo "phone access: direct, port $API_PORT"; fi
   if ! running ingest; then echo "live data: ingest not running"; return; fi
   echo "live data:"
   # shellcheck disable=SC2016 # ${...} below is JavaScript.

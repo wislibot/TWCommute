@@ -3,7 +3,7 @@
 #   infra/scripts/otp-local.sh street    # OSM → streetGraph.obj
 #   infra/scripts/otp-local.sh transit   # streetGraph.obj + GTFS → graph.obj
 #   infra/scripts/otp-local.sh build     # both in one step
-#   infra/scripts/otp-local.sh serve     # serve graph.obj on :8080
+#   infra/scripts/otp-local.sh serve     # serve graph.obj on :8080 (OTP_BIND_ADDRESS=127.0.0.1: this machine only)
 # Jar: https://repo1.maven.org/maven2/org/opentripplanner/otp-shaded/2.10.0/otp-shaded-2.10.0.jar
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -19,6 +19,6 @@ case "${1:-}" in
   street) run --buildStreet ;;
   transit) run --loadStreet --save ;;
   build) run --build --save ;;
-  serve) run --load --serve ;;
+  serve) run --load --serve --bindAddress "${OTP_BIND_ADDRESS:-0.0.0.0}" ;;
   *) echo "usage: $0 street|transit|build|serve"; exit 2 ;;
 esac
