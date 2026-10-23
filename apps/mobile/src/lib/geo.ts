@@ -1,5 +1,5 @@
 import polyline from "@mapbox/polyline";
-import type { BikeStation, Itinerary } from "@twc/contracts";
+import type { BBox, BikeStation, Itinerary } from "@twc/contracts";
 import { legColor } from "./modes";
 
 type LngLat = [number, number];
@@ -47,6 +47,22 @@ export function bikeLevel(s: Pick<BikeStation, "bikes" | "status">): "none" | "f
   if (s.status !== "active" || s.bikes === null) return "unknown";
   if (s.bikes === 0) return "none";
   return s.bikes < 3 ? "few" : "ok";
+}
+
+/**
+ * YouBike is out of service here, e.g. shut down for a typhoon: stations report closed or suspended and
+ * none is running. Stations without live data ("unknown") prove nothing either way.
+ */
+export function bikesOutOfService(stations: Pick<BikeStation, "status">[]): boolean {
+  return (
+    stations.some((s) => s.status === "closed" || s.status === "suspended") &&
+    !stations.some((s) => s.status === "active")
+  );
+}
+
+/** A box of about ±1 km around a point. */
+export function bboxAround(p: { lat: number; lon: number }, deg = 0.01): BBox {
+  return { minLat: p.lat - deg, minLon: p.lon - deg, maxLat: p.lat + deg, maxLon: p.lon + deg };
 }
 
 export function bikesGeoJson(stations: BikeStation[]): GeoJSON.FeatureCollection<GeoJSON.Point> {

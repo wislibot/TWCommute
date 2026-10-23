@@ -76,7 +76,8 @@
   "bike": {
     "bikes": "Bikes",
     "ebikes": "E-bikes",
-    "docks": "Free docks"
+    "docks": "Free docks",
+    "outage": "YouBike is closed or suspended here right now, so routes won't include it."
   },
   "tpass": {
     "title": "TPASS",

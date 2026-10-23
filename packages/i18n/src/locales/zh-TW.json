@@ -76,7 +76,8 @@
   "bike": {
     "bikes": "可借",
     "ebikes": "電輔車",
-    "docks": "可還"
+    "docks": "可還",
+    "outage": "此區 YouBike 目前停止或暫停營運，路線不會使用 YouBike。"
   },
   "tpass": {
     "title": "TPASS",

@@ -1,18 +1,23 @@
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, FlatList, StyleSheet } from "react-native";
+import { BikeOutageNotice } from "@/components/bike-outage";
 import { DataCredit } from "@/components/data-credit";
 import { PrimaryButton } from "@/components/form";
 import { ItineraryCard } from "@/components/itinerary-card";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { usePlan } from "@/lib/hooks";
+import { bboxAround, bikesOutOfService } from "@/lib/geo";
+import { useBikes, usePlan } from "@/lib/hooks";
 import { useDraft } from "@/lib/store";
 
 export default function ResultsScreen() {
   const { t } = useTranslation();
   const request = useDraft((s) => s.submitted);
   const plan = usePlan(request);
+  // Without this, YouBike options just vanish while the stations at the start are shut (e.g. a typhoon).
+  const bikes = useBikes(request && request.bikeShare !== false ? bboxAround(request.from) : null);
+  const outage = bikes.data !== undefined && bikesOutOfService(bikes.data.stations);
 
   if (plan.isLoading) {
     return (
@@ -35,6 +40,7 @@ export default function ResultsScreen() {
         data={plan.data?.itineraries ?? []}
         keyExtractor={(it) => it.id}
         contentContainerStyle={styles.list}
+        ListHeaderComponent={outage ? <BikeOutageNotice /> : null}
         ListEmptyComponent={<ThemedText style={styles.empty}>{t("results.noRoutes")}</ThemedText>}
         ListFooterComponent={<DataCredit />}
         renderItem={({ item, index }) => (

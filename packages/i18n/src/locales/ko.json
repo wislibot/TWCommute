@@ -76,7 +76,8 @@
   "bike": {
     "bikes": "대여 가능",
     "ebikes": "전기자전거",
-    "docks": "반납 가능"
+    "docks": "반납 가능",
+    "outage": "이 지역의 YouBike는 현재 운영이 중단되어 경로에 포함되지 않습니다."
   },
   "tpass": {
     "title": "TPASS",

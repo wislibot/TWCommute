@@ -18,6 +18,8 @@ interface Props {
   mapRef?: Ref<MapRef>;
   showUser?: boolean;
   onRegionDidChange?: (e: NativeSyntheticEvent<ViewStateChangeEvent>) => void;
+  /** The map has loaded; camera moves requested before this are dropped. */
+  onReady?: () => void;
   children?: ReactNode;
 }
 
@@ -30,6 +32,7 @@ export function TransitMap({
   mapRef,
   showUser,
   onRegionDidChange,
+  onReady,
   children,
 }: Props) {
   return (
@@ -40,6 +43,7 @@ export function TransitMap({
       attribution
       logo={false}
       onRegionDidChange={onRegionDidChange}
+      onDidFinishLoadingMap={onReady}
     >
       <Camera
         ref={cameraRef}

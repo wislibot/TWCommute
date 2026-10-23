@@ -6,12 +6,13 @@ import { useTranslation } from "react-i18next";
 import { FlatList, type NativeSyntheticEvent, Pressable, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ModeChip } from "@/components/badges";
+import { BikeOutageNotice } from "@/components/bike-outage";
 import { ThemedText } from "@/components/themed-text";
 import { TransitMap } from "@/components/transit-map";
 import { useTheme } from "@/hooks/use-theme";
 import { DEFAULT_CENTER } from "@/lib/config";
 import { formatDistance } from "@/lib/format";
-import { bikesGeoJson } from "@/lib/geo";
+import { bikesGeoJson, bikesOutOfService } from "@/lib/geo";
 import { useBikes, useCurrentPosition, useNearbyStops } from "@/lib/hooks";
 
 /** Only load bike stations once zoomed in far enough for the dots to be useful. */
@@ -23,12 +24,14 @@ export default function HomeScreen() {
   const camera = useRef<CameraRef>(null);
   const { pos } = useCurrentPosition();
   const [bbox, setBbox] = useState<BBox | null>(null);
+  const [mapReady, setMapReady] = useState(false);
   const bikes = useBikes(bbox);
   const nearby = useNearbyStops(pos ?? { lat: DEFAULT_CENTER[1], lon: DEFAULT_CENTER[0] });
 
+  // A position that arrives before the map has loaded would be dropped, leaving the map on Taipei.
   useEffect(() => {
-    if (pos) camera.current?.flyTo({ center: [pos.lon, pos.lat], zoom: 15 });
-  }, [pos]);
+    if (pos && mapReady) camera.current?.flyTo({ center: [pos.lon, pos.lat], zoom: 15 });
+  }, [pos, mapReady]);
 
   const onRegionDidChange = (e: NativeSyntheticEvent<ViewStateChangeEvent>) => {
     const { zoom, bounds } = e.nativeEvent;
@@ -39,7 +42,13 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      <TransitMap center={DEFAULT_CENTER} cameraRef={camera} showUser onRegionDidChange={onRegionDidChange}>
+      <TransitMap
+        center={DEFAULT_CENTER}
+        cameraRef={camera}
+        showUser
+        onRegionDidChange={onRegionDidChange}
+        onReady={() => setMapReady(true)}
+      >
         {bikes.data && (
           <GeoJSONSource id="bikes" data={bikesGeoJson(bikes.data.stations)}>
             <Layer
@@ -78,6 +87,7 @@ export default function HomeScreen() {
       </SafeAreaView>
 
       <View style={[styles.panel, { backgroundColor: theme.background }]}>
+        {bikes.data && bikesOutOfService(bikes.data.stations) && <BikeOutageNotice />}
         <Pressable
           onPress={() => router.push("/plan")}
           accessibilityRole="button"

@@ -76,7 +76,8 @@
   "bike": {
     "bikes": "貸出可",
     "ebikes": "電動アシスト",
-    "docks": "返却可"
+    "docks": "返却可",
+    "outage": "この付近の YouBike は現在運休中のため、ルートには含まれません。"
   },
   "tpass": {
     "title": "TPASS",

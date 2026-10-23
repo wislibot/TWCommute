@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bikeLevel, boundsOf, decodeLine } from "./geo";
+import { bikeLevel, bikesOutOfService, boundsOf, decodeLine } from "./geo";
 import { legColor, textOn } from "./modes";
 
 describe("geo", () => {
@@ -23,6 +23,12 @@ describe("geo", () => {
     expect(bikeLevel({ bikes: 2, status: "active" })).toBe("few");
     expect(bikeLevel({ bikes: 9, status: "active" })).toBe("ok");
     expect(bikeLevel({ bikes: 9, status: "suspended" })).toBe("unknown");
+  });
+  it("detects YouBike out of service", () => {
+    expect(bikesOutOfService([{ status: "closed" }, { status: "suspended" }, { status: "unknown" }])).toBe(true);
+    expect(bikesOutOfService([{ status: "closed" }, { status: "active" }])).toBe(false);
+    expect(bikesOutOfService([{ status: "unknown" }])).toBe(false);
+    expect(bikesOutOfService([])).toBe(false);
   });
 });
 
