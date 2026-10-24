@@ -7,7 +7,7 @@ import { planWithStops } from "./chain";
 import { addDockRisk } from "./dock-risk";
 import { overlayLiveBus } from "./live-overlay";
 import { mapItinerary } from "./map";
-import { markSilentFeeds, silentFeeds } from "./service-alert";
+import { markSilentFeeds, SILENT_FEED_HORIZON_MS, silentFeeds } from "./service-alert";
 import { addTpassCoverage } from "./tpass";
 import { buildPlanVariables } from "./variables";
 
@@ -24,7 +24,13 @@ export async function plan(req: PlanRequest, deps: PlanDeps): Promise<PlanRespon
 
   let itineraries = routed.itineraries;
   const health = deps.ingest.health?.().catch(() => null) ?? Promise.resolve(null);
-  itineraries = await overlayLiveBus(itineraries, deps.ingest, now, deps.liveWindowMinutes);
+  itineraries = await overlayLiveBus(
+    itineraries,
+    deps.ingest,
+    now,
+    deps.liveWindowMinutes,
+    SILENT_FEED_HORIZON_MS / 60_000,
+  );
   itineraries = markSilentFeeds(itineraries, silentFeeds(await health, now), now);
   itineraries = await addDockRisk(itineraries, deps.ingest, now);
   itineraries = addTpassCoverage(itineraries, req.tpassId);

@@ -41,6 +41,16 @@ describe("live bus overlay", () => {
     expect(out?.legs[busLegIndex]?.live).toBeUndefined();
   });
 
+  it("takes only not-operating-today from TDX for legs beyond the live window", async () => {
+    const eta = { etaSeconds: 300, asOf: "2026-10-11T08:00:00+08:00", isLastBus: false, stopStatus: 0 };
+    const at8 = new Date("2026-10-11T08:00:00+08:00");
+    const [live] = await overlayLiveBus([base], { busEta: vi.fn().mockResolvedValue([eta]) }, at8, 45, 240);
+    expect(live?.legs[busLegIndex]).toMatchObject({ realtime: "scheduled" });
+    const off = { ...eta, etaSeconds: null, stopStatus: 4 };
+    const [stopped] = await overlayLiveBus([base], { busEta: vi.fn().mockResolvedValue([off]) }, at8, 45, 240);
+    expect(stopped?.legs[busLegIndex]?.serviceAlert).toBe("not_operating_today");
+  });
+
   it("skips legs far in the future and survives ingest errors", async () => {
     const busEta = vi.fn().mockRejectedValue(new Error("down"));
     const early = await overlayLiveBus([base], { busEta }, new Date("2026-10-11T08:00:00+08:00"), 45);

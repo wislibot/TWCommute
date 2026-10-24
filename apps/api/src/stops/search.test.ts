@@ -51,6 +51,22 @@ describe("searchStops", () => {
     expect(query).toHaveBeenCalledTimes(1);
   });
 
+  it("matches Latin text from the start of a word, and collapses names that differ in spacing", async () => {
+    const { index: idx } = index({
+      stations: [],
+      stops: [
+        stop("tw:HSZ1", "清大南大校區", "BUS", "NTHU Nanda Campus"),
+        stop("tw:HSZ2", "明新科大", "BUS", "Min Th University"),
+        stop("tw:HSZ3", "清華大學", "BUS", "National Tsing Hua University"),
+        stop("tw:HSZ4", "清華大學", "BUS", "National Tsing Hua  University"),
+      ],
+    });
+    expect((await searchStops("NTHU", "en", { index: idx })).map((r) => r.id)).toEqual(["tw:HSZ1"]);
+    expect((await searchStops("hua univ", "en", { index: idx })).map((r) => r.id)).toEqual(["tw:HSZ3"]);
+    // Chinese has no word breaks: anywhere in the name.
+    expect((await searchStops("南大", "en", { index: idx })).map((r) => r.id)).toEqual(["tw:HSZ1"]);
+  });
+
   it("retries a failed index load", async () => {
     const query = vi.fn().mockRejectedValueOnce(new Error("down")).mockResolvedValue({ stations: [], stops: [] });
     const idx = new StopIndex({ query });

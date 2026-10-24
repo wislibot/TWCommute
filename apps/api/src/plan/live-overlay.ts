@@ -34,9 +34,13 @@ function isLeavingSoon(leg: Leg, now: Date, windowMinutes: number): boolean {
  */
 export const ETA_MATCH_TOLERANCE_MS = 10 * 60_000;
 
+/** TDX StopStatus 4: the operator says this route does not run today, so no later bus either. */
+function applyStatus(leg: Leg, eta: EtaResult | null): Leg {
+  return eta?.stopStatus === 4 ? { ...leg, serviceAlert: "not_operating_today" } : leg;
+}
+
 export function applyEta(leg: Leg, eta: EtaResult | null): Leg {
-  // TDX StopStatus 4: the operator says this route does not run today.
-  if (eta?.stopStatus === 4) return { ...leg, serviceAlert: "not_operating_today" };
+  if (eta?.stopStatus === 4) return applyStatus(leg, eta);
   if (!eta || eta.etaSeconds === null) return leg;
   const predicted = Date.parse(eta.asOf) + eta.etaSeconds * 1000;
   if (Date.parse(leg.start.scheduled) - predicted > ETA_MATCH_TOLERANCE_MS) return leg;
@@ -47,25 +51,30 @@ export function applyEta(leg: Leg, eta: EtaResult | null): Leg {
   };
 }
 
-/** Attach live ETAs to every eligible bus leg with a single batched ingest call. */
+/**
+ * Attach live ETAs to bus legs leaving within `windowMinutes`, with a single batched ingest call.
+ * Legs leaving later, up to `alertMinutes`, only take TDX's not-operating-today status.
+ */
 export async function overlayLiveBus(
   itineraries: Itinerary[],
   ingest: Pick<IngestClient, "busEta">,
   now: Date,
   windowMinutes: number,
+  alertMinutes = windowMinutes,
 ): Promise<Itinerary[]> {
-  const targets: Array<{ it: number; leg: number; query: EtaQuery }> = [];
+  const targets: Array<{ it: number; leg: number; query: EtaQuery; soon: boolean; departs: number }> = [];
   for (const [i, it] of itineraries.entries()) {
     for (const [j, leg] of it.legs.entries()) {
-      if (leg.realtime === "live" || !isLeavingSoon(leg, now, windowMinutes)) continue;
+      if (leg.realtime === "live" || !isLeavingSoon(leg, now, Math.max(windowMinutes, alertMinutes))) continue;
       const query = etaQueryForLeg(leg);
-      if (query) targets.push({ it: i, leg: j, query });
+      const soon = isLeavingSoon(leg, now, windowMinutes);
+      if (query) targets.push({ it: i, leg: j, query, soon, departs: Date.parse(leg.start.scheduled) });
     }
   }
   if (targets.length === 0) return itineraries;
 
-  // The ingest endpoint accepts at most 50 queries per call.
-  const batch = targets.slice(0, 50);
+  // The ingest endpoint accepts at most 50 queries per call: the soonest legs first.
+  const batch = targets.sort((a, b) => a.departs - b.departs).slice(0, 50);
   let results: (EtaResult | null)[];
   try {
     results = await ingest.busEta(batch.map((t) => t.query));
@@ -76,7 +85,7 @@ export async function overlayLiveBus(
   for (const [k, t] of batch.entries()) {
     const it = out[t.it];
     const leg = it?.legs[t.leg];
-    if (it && leg) it.legs[t.leg] = applyEta(leg, results[k] ?? null);
+    if (it && leg) it.legs[t.leg] = (t.soon ? applyEta : applyStatus)(leg, results[k] ?? null);
   }
   return out;
 }

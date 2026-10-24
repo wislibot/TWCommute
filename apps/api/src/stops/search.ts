@@ -30,7 +30,19 @@ interface Entry {
   lon: number;
   modes: SearchResult["modes"];
   parent?: string;
+  /** Both names, normalized. */
   keys: string[];
+  /** Both names from each word on, normalized: Latin queries match from the start of a word. */
+  wordStarts: string[];
+}
+
+/** "National Tsing-Hua University" → nationaltsinghuauniversity, tsinghuauniversity, huauniversity, university. */
+function fromEachWord(name: string): string[] {
+  const words = name
+    .normalize("NFKC")
+    .split(/[\s\p{P}\p{S}]+/u)
+    .filter(Boolean);
+  return words.map((_, i) => normalizeName(words.slice(i).join("")));
 }
 
 function toEntry(s: OtpSearchStop, kind: Entry["kind"]): Entry {
@@ -44,7 +56,16 @@ function toEntry(s: OtpSearchStop, kind: Entry["kind"]): Entry {
     modes: s.vehicleMode ? [mapMode(s.vehicleMode)] : [],
     ...(s.parentStation ? { parent: s.parentStation.gtfsId } : {}),
     keys: [...new Set([normalizeName(s.zh), normalizeName(s.en)])],
+    wordStarts: [...new Set([...fromEachWord(s.zh), ...fromEachWord(s.en)])],
   };
+}
+
+/**
+ * Chinese text has no spaces, so a Chinese query matches anywhere in a name. A Latin one matches
+ * from the start of a word: without spaces, "NTHU" would also hit "Mi(n Th U)niversity".
+ */
+function matches(e: Entry, query: string, latin: boolean): boolean {
+  return latin ? e.wordStarts.some((w) => w.startsWith(query)) : e.keys.some((k) => k.includes(query));
 }
 
 /** All stations and stops with their Chinese and English names, loaded from OTP when first needed. */
@@ -86,7 +107,8 @@ export async function searchStops(q: string, locale: Locale, deps: { index: Stop
   const query = normalizeName(q);
   if (!query) return [];
   const entries = await deps.index.load();
-  const hits = entries.filter((e) => e.keys.some((k) => k.includes(query)));
+  const latin = !/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(query);
+  const hits = entries.filter((e) => matches(e, query, latin));
   // Platforms/exits of a matched station are redundant.
   const stationIds = new Set(hits.filter((e) => e.kind === "station").map((e) => e.id));
 
@@ -95,7 +117,8 @@ export async function searchStops(q: string, locale: Locale, deps: { index: Stop
   for (const e of hits) {
     if (e.parent && stationIds.has(e.parent)) continue;
     const name = locale === "en" ? e.en : e.zh;
-    const key = `${e.kind}:${name}`;
+    // Names that differ only in spacing or punctuation are the same place to the user.
+    const key = `${e.kind}:${normalizeName(name)}`;
     if (seen.has(key)) continue;
     seen.add(key);
     results.push({
