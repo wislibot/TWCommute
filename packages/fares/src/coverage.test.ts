@@ -48,10 +48,44 @@ describe("evaluateCoverage", () => {
   });
 
   it("does not cover modes the pass excludes", () => {
-    const tchhm = findPass("tchhm");
-    expect(
-      tchhm && evaluateCoverage(tchhm, [{ tpassMode: "bike_share", fromCity: "Taoyuan", toCity: "Taoyuan" }]),
-    ).toBe("not_covered");
+    const hc = findPass("hc");
+    expect(hc && evaluateCoverage(hc, [{ tpassMode: "metro", fromCity: "Hsinchu", toCity: "Hsinchu" }])).toBe(
+      "not_covered",
+    );
+  });
+});
+
+describe("桃竹竹苗 passes", () => {
+  const hc = findPass("hc");
+  const tchhm = findPass("tchhm");
+  if (!hc || !tchhm) throw new Error("桃竹竹苗 passes missing");
+
+  it("covers YouBike rented inside for the free minutes", () => {
+    const ride = (fromCity: FareLeg["fromCity"], minutes: number): FareLeg => ({
+      tpassMode: "bike_share",
+      fromCity,
+      toCity: null,
+      minutes,
+    });
+    expect(evaluateCoverage(hc, [ride("Hsinchu", 20)])).toBe("covered");
+    expect(evaluateCoverage(hc, [bus("Hsinchu", "Hsinchu"), ride("HsinchuCounty", 40)])).toBe("partial");
+    expect(evaluateCoverage(tchhm, [ride("Taoyuan", 45)])).toBe("covered");
+    expect(evaluateCoverage(hc, [ride("Taoyuan", 10)])).toBe("not_covered");
+  });
+
+  it("covers trains and intercity buses with both ends inside", () => {
+    const train = (fromCity: FareLeg["fromCity"], toCity: FareLeg["toCity"]): FareLeg => ({
+      tpassMode: "tra_local",
+      fromCity,
+      toCity,
+    });
+    expect(evaluateCoverage(hc, [train("Hsinchu", "HsinchuCounty")])).toBe("covered");
+    expect(evaluateCoverage(hc, [train("Hsinchu", "MiaoliCounty")])).toBe("not_covered");
+    expect(evaluateCoverage(tchhm, [train("Hsinchu", "MiaoliCounty")])).toBe("covered");
+    expect(evaluateCoverage(hc, [{ ...train("Hsinchu", "Hsinchu"), uncertain: true }])).toBe("unknown");
+    expect(evaluateCoverage(hc, [{ tpassMode: "intercity_bus", fromCity: "HsinchuCounty", toCity: "Taipei" }])).toBe(
+      "not_covered",
+    );
   });
 });
 

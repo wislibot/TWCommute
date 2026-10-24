@@ -9,6 +9,7 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useTheme } from "@/hooks/use-theme";
 import { normalizeServerUrl } from "@/lib/config";
+import { findServers } from "@/lib/discover";
 import { useLocale } from "@/lib/hooks";
 import { useSettings } from "@/lib/store";
 
@@ -58,21 +59,30 @@ function ServerSetting() {
   const { t } = useTranslation();
   const theme = useTheme();
   const queryClient = useQueryClient();
-  const { apiUrl, setApiUrl } = useSettings();
+  const { apiUrl, setApiUrl, apiToken, setApiToken } = useSettings();
   const [text, setText] = useState(apiUrl ?? "");
+  const [key, setKey] = useState(apiToken ?? "");
   const [status, setStatus] = useState<"saved" | "invalid" | null>(null);
+  // null: not searched; undefined: searching; else the servers found.
+  const [found, setFound] = useState<string[] | null | undefined>(null);
 
-  const save = () => {
-    const url = normalizeServerUrl(text);
+  const save = (address = text) => {
+    const url = normalizeServerUrl(address);
     if (url === undefined) {
       setStatus("invalid");
       return;
     }
     setApiUrl(url);
+    setApiToken(key.trim() || null);
     setText(url ?? "");
     setStatus("saved");
     // Answers (and errors) from the old server no longer apply.
     queryClient.resetQueries();
+  };
+
+  const find = async () => {
+    setFound(undefined);
+    setFound(await findServers().catch(() => []));
   };
 
   return (
@@ -83,7 +93,7 @@ function ServerSetting() {
           setText(v);
           setStatus(null);
         }}
-        onSubmitEditing={save}
+        onSubmitEditing={() => save()}
         placeholder="http://192.168.1.20:3000"
         placeholderTextColor={theme.textSecondary}
         autoCapitalize="none"
@@ -96,12 +106,52 @@ function ServerSetting() {
       <ThemedText type="small" themeColor="textSecondary">
         {t("settings.serverHint")}
       </ThemedText>
+      <TextInput
+        value={key}
+        onChangeText={(v) => {
+          setKey(v);
+          setStatus(null);
+        }}
+        onSubmitEditing={() => save()}
+        placeholder={t("settings.accessKey")}
+        placeholderTextColor={theme.textSecondary}
+        autoCapitalize="none"
+        autoCorrect={false}
+        returnKeyType="done"
+        accessibilityLabel={t("settings.accessKey")}
+        style={[styles.input, { backgroundColor: theme.backgroundElement, color: theme.text }]}
+      />
       {status && (
         <ThemedText type="small" style={{ color: status === "invalid" ? theme.danger : theme.tint }}>
           {status === "invalid" ? t("settings.serverInvalid") : t("settings.serverSaved")}
         </ThemedText>
       )}
-      <PrimaryButton title={t("settings.serverSave")} onPress={save} />
+      <PrimaryButton title={t("settings.serverSave")} onPress={() => save()} />
+      <Pressable onPress={find} disabled={found === undefined} accessibilityRole="button" style={styles.findButton}>
+        <ThemedText style={{ color: theme.tint }}>{t("settings.findServer")}</ThemedText>
+      </Pressable>
+      {found === undefined && (
+        <ThemedText type="small" themeColor="textSecondary">
+          {t("settings.searching")}
+        </ThemedText>
+      )}
+      {found?.length === 0 && (
+        <ThemedText type="small" themeColor="textSecondary">
+          {t("settings.noServerFound")}
+        </ThemedText>
+      )}
+      {found && found.length > 0 && (
+        <ThemedText type="small" themeColor="textSecondary">
+          {t("settings.serversFound")}
+        </ThemedText>
+      )}
+      {found?.map((url) => (
+        <Pressable key={url} onPress={() => save(url)} accessibilityRole="button" style={styles.findButton}>
+          <ThemedText type="smallBold" style={{ color: theme.tint }}>
+            {url}
+          </ThemedText>
+        </Pressable>
+      ))}
     </View>
   );
 }
@@ -171,4 +221,5 @@ const styles = StyleSheet.create({
   },
   server: { gap: 8, paddingTop: 8 },
   input: { borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16 },
+  findButton: { paddingVertical: 10 },
 });

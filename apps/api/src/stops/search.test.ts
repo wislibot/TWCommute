@@ -1,33 +1,65 @@
 import { describe, expect, it, vi } from "vitest";
-import { searchStops } from "./search";
+import { normalizeName, StopIndex, searchStops } from "./search";
 
-const stop = (gtfsId: string, name: string, vehicleMode: string, parent?: string) => ({
+const stop = (gtfsId: string, zh: string, vehicleMode: string, en = zh, parent?: string) => ({
   gtfsId,
-  name,
-  code: null,
+  zh,
+  en,
   lat: 25.04,
   lon: 121.51,
   vehicleMode,
   parentStation: parent ? { gtfsId: parent } : null,
 });
 
+function index(data: object) {
+  const query = vi.fn().mockResolvedValue(data);
+  return { query, index: new StopIndex({ query }) };
+}
+
 describe("searchStops", () => {
   it("ranks stations first, drops child platforms and collapses same-name stops", async () => {
-    const query = vi.fn().mockResolvedValue({
-      stations: [stop("trtc:BL12", "台北車站", "SUBWAY")],
+    const { index: idx } = index({
+      stations: [stop("trtc:BL12", "台北車站", "SUBWAY", "Taipei Main Station")],
       stops: [
-        stop("trtc:BL12-1", "台北車站", "SUBWAY", "trtc:BL12"),
+        stop("trtc:BL12-1", "台北車站", "SUBWAY", "Taipei Main Station", "trtc:BL12"),
         stop("tw:TPE1", "台北車站(忠孝)", "BUS"),
         stop("tw:TPE2", "台北車站(忠孝)", "BUS"),
         stop("tw:TPE3", "捷運台北車站", "BUS"),
       ],
     });
-    const results = await searchStops("台北車站", "zh-TW", { otp: { query } });
+    const results = await searchStops("臺北車站", "zh-TW", { index: idx });
     expect(results.map((r) => [r.id, r.kind])).toEqual([
       ["trtc:BL12", "station"],
       ["tw:TPE1", "stop"],
       ["tw:TPE3", "stop"],
     ]);
-    expect(query).toHaveBeenCalledWith(expect.any(String), { q: "台北車站", lang: "zh" }, "zh-TW");
+  });
+
+  it("finds Chinese and English names in any language, ignoring spaces and hyphens", async () => {
+    const { query, index: idx } = index({
+      stations: [],
+      stops: [stop("tw:HSZ291242", "清華大學", "BUS", "National Tsing-Hua University")],
+    });
+    expect((await searchStops("Tsing Hua", "en", { index: idx })).map((r) => r.name)).toEqual([
+      "National Tsing-Hua University",
+    ]);
+    expect((await searchStops("清華", "en", { index: idx })).map((r) => r.name)).toEqual([
+      "National Tsing-Hua University",
+    ]);
+    expect((await searchStops("tsinghua", "ja", { index: idx })).map((r) => r.name)).toEqual(["清華大學"]);
+    // The index is loaded once.
+    expect(query).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries a failed index load", async () => {
+    const query = vi.fn().mockRejectedValueOnce(new Error("down")).mockResolvedValue({ stations: [], stops: [] });
+    const idx = new StopIndex({ query });
+    await expect(searchStops("新竹", "zh-TW", { index: idx })).rejects.toThrow("down");
+    expect(await searchStops("新竹", "zh-TW", { index: idx })).toEqual([]);
+  });
+
+  it("normalizes names", () => {
+    expect(normalizeName("Ｔsing-Hua Univ.")).toBe("tsinghuauniv");
+    expect(normalizeName("臺北 車站")).toBe("台北車站");
   });
 });

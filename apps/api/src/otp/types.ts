@@ -120,15 +120,15 @@ export interface OtpStopDeparturesData {
 
 export interface OtpSearchStop {
   gtfsId: string;
-  name: string;
-  code: string | null;
+  zh: string;
+  en: string;
   lat: number;
   lon: number;
   vehicleMode: string | null;
   parentStation?: { gtfsId: string } | null;
 }
 
-export interface OtpSearchData {
+export interface OtpSearchIndexData {
   stations: (OtpSearchStop | null)[] | null;
   stops: (OtpSearchStop | null)[] | null;
 }

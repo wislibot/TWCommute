@@ -1,6 +1,28 @@
-import type { Itinerary, Leg } from "@twc/contracts";
+import type { Itinerary, Leg, LegPlace } from "@twc/contracts";
 import { type City, cityFromUid, evaluateCoverage, type FareLeg, findPass } from "@twc/fares";
 import { feedId, localId } from "../lib/ids";
+import { cityAt } from "./city";
+
+/** A place's city: from its TDX id when it carries a city code, else from where it is. */
+function cityOf(place: LegPlace, id?: string): City | null {
+  return cityFromUid(localId(id ?? place.stopId)) ?? cityAt(place.lat, place.lon);
+}
+
+/**
+ * TRA train classes, the `<type>` in TDX route ids `TRA_<trainNo>_<direction>_<type>`. TPASS takes
+ * every class except Taroko, Puyuma, EMU3000, tour and group trains (all 桃竹竹苗 and 基北北桃 rules).
+ * Matched against TRA's open timetable of 2026-10-24 (train numbers and notes): 1101 Taroko, 1107
+ * Puyuma, 110G/110H/110K/110M EMU3000 (every 自強(3000) train number, and nothing else); 1108/1109
+ * push-pull 自強, 110A/110F other 自強, 1110 莒光, 1131 區間, 1132 區間快. Other classes stay unknown.
+ */
+const TRA_EXCLUDED = new Set(["1101", "1107", "110G", "110H", "110K", "110M"]);
+const TRA_ACCEPTED = new Set(["1108", "1109", "110A", "110F", "1110", "1131", "1132"]);
+
+function traClass(leg: Leg): "accepted" | "excluded" | "unknown" {
+  const type = /^TRA_[0-9A-Za-z]+_\d+_([0-9A-Za-z]+)$/.exec(localId(leg.route?.id) ?? "")?.[1];
+  if (!type) return "unknown";
+  return TRA_EXCLUDED.has(type) ? "excluded" : TRA_ACCEPTED.has(type) ? "accepted" : "unknown";
+}
 
 /**
  * Metro systems lie inside one living circle, so a representative city is enough to decide
@@ -48,17 +70,18 @@ export function toFareLeg(leg: Leg): FareLeg {
       if (!leg.rentedBike) return { tpassMode: null, fromCity: null, toCity: null };
       return {
         tpassMode: "bike_share",
-        fromCity: cityFromUid(localId(leg.from.bikeStation?.stationId)),
-        toCity: cityFromUid(localId(leg.to.bikeStation?.stationId)),
+        fromCity: cityOf(leg.from, leg.from.bikeStation?.stationId),
+        toCity: cityOf(leg.to, leg.to.bikeStation?.stationId),
+        minutes: leg.durationSeconds / 60,
       };
     }
     case "BUS": {
-      const fromCity = cityFromUid(leg.from.stopId);
-      const toCity = cityFromUid(leg.to.stopId);
-      return { tpassMode: fromCity || toCity ? "city_bus" : "intercity_bus", fromCity, toCity };
+      // City buses carry their city in the stop id (HSZ…); intercity stops (THB…) do not.
+      const cityBus = cityFromUid(leg.from.stopId) !== null || cityFromUid(leg.to.stopId) !== null;
+      return { tpassMode: cityBus ? "city_bus" : "intercity_bus", fromCity: cityOf(leg.from), toCity: cityOf(leg.to) };
     }
     case "COACH":
-      return { tpassMode: "intercity_bus", fromCity: cityFromUid(leg.from.stopId), toCity: cityFromUid(leg.to.stopId) };
+      return { tpassMode: "intercity_bus", fromCity: cityOf(leg.from), toCity: cityOf(leg.to) };
     case "SUBWAY":
     case "GONDOLA": {
       const city = metroCity(leg);
@@ -68,12 +91,19 @@ export function toFareLeg(leg: Leg): FareLeg {
       const city = metroCity(leg);
       return { tpassMode: "light_rail", fromCity: city, toCity: city };
     }
-    case "RAIL":
-      return isThsr(leg)
-        ? { tpassMode: "thsr", fromCity: null, toCity: null }
-        : { tpassMode: "tra_local", fromCity: null, toCity: null };
+    case "RAIL": {
+      if (isThsr(leg)) return { tpassMode: "thsr", fromCity: null, toCity: null };
+      const cls = traClass(leg);
+      if (cls === "excluded") return { tpassMode: "other", fromCity: null, toCity: null };
+      return {
+        tpassMode: "tra_local",
+        fromCity: cityAt(leg.from.lat, leg.from.lon),
+        toCity: cityAt(leg.to.lat, leg.to.lon),
+        ...(cls === "unknown" ? { uncertain: true } : {}),
+      };
+    }
     case "FERRY":
-      return { tpassMode: "ferry", fromCity: null, toCity: null };
+      return { tpassMode: "ferry", fromCity: cityOf(leg.from), toCity: cityOf(leg.to) };
     default:
       return { tpassMode: "other", fromCity: null, toCity: null };
   }

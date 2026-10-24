@@ -68,4 +68,13 @@ describe("API server", () => {
     const passes = (await app.inject("/v1/tpass/passes")).json().passes;
     expect(passes.map((p: { id: string }) => p.id)).toContain("kpntp");
   });
+
+  it("asks for the access key when one is set, except on health", async () => {
+    const app = await createServer(deps({ apiToken: "k".repeat(32) }));
+    const url = "/v1/bikes?minLat=25&minLon=121.5&maxLat=25.05&maxLon=121.55";
+    expect((await app.inject(url)).statusCode).toBe(401);
+    expect((await app.inject({ url, headers: { authorization: `Bearer ${"x".repeat(32)}` } })).statusCode).toBe(401);
+    expect((await app.inject({ url, headers: { authorization: `Bearer ${"k".repeat(32)}` } })).statusCode).toBe(200);
+    expect((await app.inject("/v1/health")).statusCode).toBe(200);
+  });
 });

@@ -4,3 +4,7 @@ data
 infra/data
 apps/mobile
 .git
+# Secrets come in at run time (env_file), never baked into an image.
+.env
+.env.*
+*.apk

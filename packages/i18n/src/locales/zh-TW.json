@@ -61,6 +61,11 @@
     "arriving": "即將進站",
     "lastBus": "末班車"
   },
+  "alert": {
+    "mayNotRun": "可能停駛",
+    "not_operating_today": "業者表示此路線今日未營運。",
+    "no_live_service": "此業者目前沒有任何即時資料，公車可能停駛（例如颱風期間）。"
+  },
   "risk": {
     "low": "車位充足",
     "medium": "車位可能吃緊",
@@ -100,11 +105,17 @@
     "serverSave": "儲存",
     "serverSaved": "已儲存。",
     "serverInvalid": "這不是有效的伺服器位址。範例：http://192.168.1.20:3000",
+    "accessKey": "存取金鑰（伺服器有設定時才需要）",
+    "findServer": "在這個 Wi-Fi 上尋找伺服器",
+    "searching": "正在這個 Wi-Fi 上尋找 TWCommute 伺服器…",
+    "serversFound": "點選位址即可使用：",
+    "noServerFound": "找不到伺服器。請確認手機與伺服器（或執行 SSH 通道的筆電）連到同一個 Wi-Fi。",
     "about": "關於",
     "dataSource": "交通資料來源：交通部運輸資料流通服務平臺（TDX）。地圖資料 © OpenStreetMap 貢獻者。"
   },
   "errors": {
     "network": "無法連線至 TWCommute 伺服器，請檢查網路連線及設定中的伺服器位址。",
-    "generic": "發生錯誤。"
+    "generic": "發生錯誤。",
+    "unauthorized": "伺服器需要存取金鑰。請到「設定 → 伺服器」輸入。"
   }
 }

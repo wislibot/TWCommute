@@ -61,6 +61,11 @@
     "arriving": "곧 도착",
     "lastBus": "막차"
   },
+  "alert": {
+    "mayNotRun": "운행 중단 가능",
+    "not_operating_today": "운영사에 따르면 이 노선은 오늘 운행하지 않습니다.",
+    "no_live_service": "현재 이 운영사의 실시간 정보가 없습니다. 버스가 운행하지 않을 수 있습니다(예: 태풍 시)."
+  },
   "risk": {
     "low": "여유 있음",
     "medium": "혼잡할 수 있음",
@@ -100,11 +105,17 @@
     "serverSave": "저장",
     "serverSaved": "저장했어요.",
     "serverInvalid": "올바른 서버 주소가 아니에요. 예: http://192.168.1.20:3000",
+    "accessKey": "액세스 키 (서버에 설정된 경우에만)",
+    "findServer": "이 Wi-Fi에서 서버 찾기",
+    "searching": "이 Wi-Fi에서 TWCommute 서버를 찾는 중…",
+    "serversFound": "주소를 눌러 사용하세요:",
+    "noServerFound": "서버를 찾지 못했어요. 휴대폰이 서버(또는 SSH 터널을 실행 중인 노트북)와 같은 Wi-Fi에 연결되어 있는지 확인하세요.",
     "about": "정보",
     "dataSource": "교통 데이터 출처: 交通部運輸資料流通服務平臺 (교통부 TDX). 지도 데이터 © OpenStreetMap contributors."
   },
   "errors": {
     "network": "TWCommute 서버에 연결할 수 없어요. 네트워크와 설정의 서버 주소를 확인해 주세요.",
-    "generic": "문제가 발생했어요."
+    "generic": "문제가 발생했어요.",
+    "unauthorized": "서버에 액세스 키가 필요해요. 설정 → 서버에서 입력하세요."
   }
 }

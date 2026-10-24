@@ -57,6 +57,8 @@ In `nano`:
 API_HOST=127.0.0.1
 ```
 
+**Optional: an access key.** Anyone on your network can use the backend, and with it your TDX quota. To require a key, add a line `API_TOKEN=` followed by the output of `openssl rand -hex 16`. The app then needs the same key in Settings → Server (step 5); the script prints it when it starts.
+
 `.env` stays on your computer; git never uploads it.
 
 ## 3. Start the backend
@@ -100,7 +102,8 @@ sudo ufw allow 3000/tcp
 
 1. Open TWCommute and allow location.
 2. Tap **⚙** (top right of the home screen).
-3. Under **Server**, type the address from step 3, for example `http://192.168.1.20:3000`, and tap **Save**.
+3. Under **Server**, tap **Find a server on this Wi-Fi**, then tap the address it finds (it looks through the Wi-Fi for about 10 seconds). Or type the address from step 3, for example `http://192.168.1.20:3000`, and tap **Save**.
+4. If you set an access key in step 2, type it in the **Access key** field and tap **Save**.
 
 ## Server elsewhere: connect through your laptop (SSH tunnel)
 
@@ -113,7 +116,7 @@ phone ──Wi-Fi──▶ laptop, port 3000 ──SSH──▶ server (the API 
 **On the server**, over SSH:
 - Do steps 1–3 with `API_HOST=127.0.0.1` in `.env`. The server then needs no open port except SSH, so skip the firewall step.
 - When it's ready, the script prints the tunnel command to run on your laptop.
-- The backend keeps running after you log out. After the server reboots, SSH in and run `infra/scripts/try-it.sh`.
+- The backend keeps running after you log out. To start it again by itself after the server reboots, run `infra/scripts/try-it.sh autostart` once.
 
 **On the Windows laptop**, in PowerShell (Windows 10 and 11 include `ssh`):
 
@@ -156,7 +159,9 @@ phone ──Wi-Fi──▶ laptop, port 3000 ──SSH──▶ server (the API 
 | 新竹火車站 → 新竹科學園區, or → 竹東 | Buses 182 or 5608 |
 | A day with a stop: 新竹火車站 → 城隍廟 (stay 60 minutes) → 南寮漁港 | The plan keeps your stay, then continues |
 | Departure boards: 新竹轉運站, 新竹火車站, 高鐵新竹站 | Each time is labelled *Live* or *Scheduled*; trains show live delays |
-| Settings → TPASS → 桃竹竹苗 | City and county buses say *covered*; YouBike is not covered |
+| Settings → TPASS → 竹竹 (NT$288) | 新竹 → 竹北 by train or bus says *covered*; 新竹 → 竹南 by train is *not covered* (竹南 is in Miaoli), but is under 桃竹竹苗. A YouBike ride over 30 minutes is *partly covered* |
+| A Puyuma or EMU3000 train with any pass | *Not covered*: TPASS excludes them |
+| A bus while its operator is suspended (e.g. a typhoon) | *May not run* on the route and the leg, with the reason |
 | Settings → language | 繁體中文, English, 日本語 and 한국어 |
 
 ## 7. Daily use
@@ -167,8 +172,10 @@ phone ──Wi-Fi──▶ laptop, port 3000 ──SSH──▶ server (the API 
 | `infra/scripts/try-it.sh stop` | Stop everything |
 | `infra/scripts/try-it.sh status` | What is running, how the phone connects (directly or through an SSH tunnel), and how fresh each live feed is |
 | `infra/scripts/try-it.sh rebuild` | Download fresh timetables and rebuild (do this weekly) |
+| `infra/scripts/try-it.sh autostart` | Start the region again by itself after every reboot (`autostart off` undoes it) |
+| `nohup infra/scripts/live-coverage.sh 24 10 >/dev/null 2>&1 &` | For a day, log every 10 minutes how many buses report live times, per operator, to `data/run/live-coverage.csv` |
 
-The computer must stay on and awake. Turn off automatic suspend (Settings → Power), and don't close a laptop's lid. After a reboot, run the first command again. Logs are in `data/run/`.
+The computer must stay on and awake. Turn off automatic suspend (Settings → Power), and don't close a laptop's lid. After a reboot, run the first command again, or turn on `autostart`. Logs are in `data/run/`.
 
 **To update to a newer version:**
 
@@ -187,7 +194,8 @@ A new app version comes as a new `.apk`: install it over the old one.
 
 - **One region at a time.** Trips must start and end inside it. Trains to Taipei or Taichung appear on departure boards, but trips to places outside the region can't be planned.
 - **Live data within the free TDX plan.** The plan allows 5 requests a minute, and Hsinchu uses about 4.2 of them for Hsinchu City and County buses, 41 intercity routes, YouBike and TRA delays. So run only one backend with your TDX key. Not every bus reports live times, and high-speed rail times come from the timetable.
-- **Partial TPASS checks.** For intercity buses and trains, TPASS shows *may be covered*: those are not yet checked station by station.
+- **TPASS checks for the 桃竹竹苗 passes only.** Their rules are checked against Hsinchu City's official Q&A. The other passes' rules come from secondary sources, and the Airport MRT and a few rare train classes still show *may be covered*.
+- **Suspensions are inferred.** The app warns *may not run* when an operator marks a route not running today, or reports no live bus at all between 07:00 and 21:00. It does not read operators' announcements.
 - **Same Wi-Fi only.** Guest networks and routers with "AP isolation" or "client isolation" stop the phone from reaching the computer.
 - **First run on a real phone.** The app has been built and checked on a computer, not yet on a phone. Screenshots of anything odd help.
 
@@ -200,6 +208,8 @@ A new app version comes as a new `.apk`: install it over the old one.
 4. Check whether the computer's address changed, which is common after a reboot. Run `hostname -I`, then update Settings → Server.
 5. On the computer, `curl http://localhost:3000/v1/health` should answer.
 
+**The app says "The server needs an access key".** `.env` has an `API_TOKEN`: type the same key in Settings → Server → Access key. `infra/scripts/try-it.sh` prints it when it starts.
+
 **Script error messages:**
 
 | Message | What to do |
@@ -211,4 +221,4 @@ A new app version comes as a new `.apk`: install it over the old one.
 | `Run this as your normal user` | Run it without `sudo`. |
 | `node is not installed` or `pnpm is not installed` | Open a new terminal, or run `nvm use 22` and `corepack enable`. |
 
-**The map opens on Taipei.** Allow location for TWCommute in the phone's settings. The map starts on Taipei until it knows where you are.
+**The map opens on Taipei.** Allow location for TWCommute in the phone's settings. The map starts on Taipei only until it first knows where you are; after that it opens where you were last.

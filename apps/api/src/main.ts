@@ -10,6 +10,7 @@ async function main() {
     ingest: new IngestClient(config.INGEST_URL, config.INTERNAL_TOKEN),
     liveWindowMinutes: config.LIVE_OVERLAY_WINDOW_MIN,
     planRateLimitPerMin: config.PLAN_RATE_LIMIT_PER_MIN,
+    apiToken: config.API_TOKEN,
     logger: true,
   });
   const close = async () => {

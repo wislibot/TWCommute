@@ -6,7 +6,7 @@ import { useTheme } from "@/hooks/use-theme";
 import { formatTime, splitDuration } from "@/lib/format";
 import { useLocale } from "@/lib/hooks";
 import { legKey } from "@/lib/keys";
-import { DockRiskBadge, ModeChip, RealtimeBadge, TpassBadge } from "./badges";
+import { DockRiskBadge, ModeChip, RealtimeBadge, ServiceAlertBadge, TpassBadge } from "./badges";
 
 export function DurationText({ seconds }: { seconds: number }) {
   const { t } = useTranslation();
@@ -49,6 +49,7 @@ export function ItineraryCard({ itinerary, onPress }: { itinerary: Itinerary; on
         </ThemedText>
         <View style={styles.badges}>
           <RealtimeBadge realtime={live ? "live" : "scheduled"} />
+          {itinerary.legs.some((l) => l.serviceAlert) && <ServiceAlertBadge />}
           {itinerary.tpass && <TpassBadge tpass={itinerary.tpass} />}
           {risk && <DockRiskBadge risk={risk} />}
         </View>

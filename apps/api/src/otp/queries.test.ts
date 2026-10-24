@@ -4,7 +4,7 @@ import { PlanRequest } from "@twc/contracts";
 import { buildSchema, getVariableValues, type OperationDefinitionNode, parse, validate } from "graphql";
 import { describe, expect, it } from "vitest";
 import { buildPlanVariables } from "../plan/variables";
-import { PLAN_QUERY, SEARCH_QUERY, STOP_DEPARTURES_QUERY, STOPS_NEARBY_QUERY } from "./queries";
+import { PLAN_QUERY, SEARCH_INDEX_QUERY, STOP_DEPARTURES_QUERY, STOPS_NEARBY_QUERY } from "./queries";
 
 // OTP's schema is produced by graphql-java and trips one of graphql-js v17's stricter SDL
 // rules (deprecated implementation fields); skip SDL validation and validate our documents only.
@@ -15,7 +15,7 @@ const schema = buildSchema(readFileSync(join(import.meta.dirname, "../../../../i
 describe("OTP queries", () => {
   for (const [name, q] of Object.entries({
     PLAN_QUERY,
-    SEARCH_QUERY,
+    SEARCH_INDEX_QUERY,
     STOP_DEPARTURES_QUERY,
     STOPS_NEARBY_QUERY,
     HEALTH: "{ feeds { feedId } }",

@@ -23,18 +23,27 @@ export class ApiError extends Error {
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   await settingsLoaded();
-  const base = useSettings.getState().apiUrl ?? API_URL;
+  const { apiUrl, apiToken } = useSettings.getState();
   let res: Response;
   try {
-    res = await fetch(`${base}${path}`, {
+    res = await fetch(`${apiUrl ?? API_URL}${path}`, {
       ...init,
-      headers: { accept: "application/json", ...(init?.body ? { "content-type": "application/json" } : {}) },
+      headers: {
+        accept: "application/json",
+        ...(init?.body ? { "content-type": "application/json" } : {}),
+        ...(apiToken ? { authorization: `Bearer ${apiToken}` } : {}),
+      },
     });
   } catch (err) {
     throw new ApiError((err as Error).message, null);
   }
   if (!res.ok) throw new ApiError(`HTTP ${res.status}`, res.status);
   return (await res.json()) as T;
+}
+
+/** What to tell the user about a failed request: a missing or wrong access key, or no server. */
+export function errorText(err: unknown): "errors.unauthorized" | "errors.network" {
+  return err instanceof ApiError && err.status === 401 ? "errors.unauthorized" : "errors.network";
 }
 
 const qs = (params: Record<string, string | number>) =>

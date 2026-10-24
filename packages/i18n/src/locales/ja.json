@@ -61,6 +61,11 @@
     "arriving": "まもなく到着",
     "lastBus": "最終バス"
   },
+  "alert": {
+    "mayNotRun": "運休の可能性",
+    "not_operating_today": "事業者によると、この路線は本日運行していません。",
+    "no_live_service": "この事業者のリアルタイム情報が現在ありません。運休している可能性があります（台風時など）。"
+  },
   "risk": {
     "low": "空きは十分です",
     "medium": "混雑している可能性があります",
@@ -100,11 +105,17 @@
     "serverSave": "保存",
     "serverSaved": "保存しました。",
     "serverInvalid": "サーバーアドレスの形式ではありません。例：http://192.168.1.20:3000",
+    "accessKey": "アクセスキー（サーバーに設定がある場合のみ）",
+    "findServer": "このWi-Fiでサーバーを探す",
+    "searching": "このWi-FiでTWCommuteサーバーを探しています…",
+    "serversFound": "アドレスをタップして使用：",
+    "noServerFound": "サーバーが見つかりません。スマートフォンがサーバー（またはSSHトンネルを動かしているノートPC）と同じWi-Fiにつながっているか確認してください。",
     "about": "このアプリについて",
     "dataSource": "交通データ提供：交通部運輸資料流通服務平臺（交通部 TDX）。地図データ © OpenStreetMap contributors。"
   },
   "errors": {
     "network": "TWCommuteのサーバーに接続できません。通信環境と、設定のサーバーアドレスをご確認ください。",
-    "generic": "エラーが発生しました。"
+    "generic": "エラーが発生しました。",
+    "unauthorized": "サーバーにアクセスキーが必要です。設定 → サーバーで入力してください。"
   }
 }

@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
 import { BBox, Locale, PlanRequest } from "@twc/contracts";
@@ -8,7 +9,7 @@ import type { IngestClient } from "./lib/ingest-client";
 import type { OtpClient } from "./otp/client";
 import { OtpError } from "./otp/client";
 import { plan } from "./plan/service";
-import { searchStops } from "./stops/search";
+import { StopIndex, searchStops } from "./stops/search";
 import { nearbyStops, stopDepartures } from "./stops/service";
 
 export interface ApiDeps {
@@ -16,8 +17,17 @@ export interface ApiDeps {
   ingest: Pick<IngestClient, "busEta" | "bikesNearby" | "bikesInBBox" | "health">;
   liveWindowMinutes: number;
   planRateLimitPerMin: number;
+  /** When set, /v1 routes other than /v1/health need `Authorization: Bearer <apiToken>`. */
+  apiToken?: string;
   now?: () => Date;
   logger?: boolean;
+}
+
+/** Constant-time comparison, so response timing does not reveal how much of a key was right. */
+function sameKey(given: string, expected: string): boolean {
+  const a = Buffer.from(given);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 const SearchQuery = z.object({
@@ -33,8 +43,19 @@ const NearbyQuery = z.object({
 
 export async function createServer(deps: ApiDeps): Promise<FastifyInstance> {
   const app = Fastify({ logger: deps.logger ?? false });
+  const stopIndex = new StopIndex(deps.otp);
   await app.register(cors, { origin: true, methods: ["GET", "POST"] });
   await app.register(rateLimit, { global: false });
+
+  const { apiToken } = deps;
+  if (apiToken) {
+    // Health stays open: the app uses it to find the server and tell "wrong key" from "no server".
+    app.addHook("onRequest", async (req, reply) => {
+      if (!req.url.startsWith("/v1/") || req.url.startsWith("/v1/health")) return;
+      const given = req.headers.authorization?.replace(/^Bearer\s+/i, "") ?? "";
+      if (!sameKey(given, apiToken)) return reply.code(401).send({ error: "unauthorized" });
+    });
+  }
 
   app.setErrorHandler((err, req, reply) => {
     if (err instanceof OtpError) {
@@ -59,7 +80,7 @@ export async function createServer(deps: ApiDeps): Promise<FastifyInstance> {
   app.get("/v1/search", async (req, reply) => {
     const parsed = SearchQuery.safeParse(req.query);
     if (!parsed.success) return reply.code(400).send({ error: "invalid_query" });
-    return { results: await searchStops(parsed.data.q, parsed.data.locale, deps) };
+    return { results: await searchStops(parsed.data.q, parsed.data.locale, { index: stopIndex }) };
   });
 
   app.get("/v1/stops/nearby", async (req, reply) => {
@@ -109,6 +130,7 @@ export async function createServer(deps: ApiDeps): Promise<FastifyInstance> {
           : "degraded",
       router: router.status === "fulfilled" ? "ok" : "unavailable",
       feeds: ingest.status === "fulfilled" ? ingest.value.feeds : [],
+      ...(ingest.status === "fulfilled" && ingest.value.busLive ? { busLive: ingest.value.busLive } : {}),
     };
     return reply.code(router.status === "fulfilled" ? 200 : 503).send(body);
   });

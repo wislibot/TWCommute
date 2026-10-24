@@ -105,22 +105,23 @@ A pnpm monorepo: Node 22, pnpm 10, turbo, biome, vitest. `pnpm check` runs lint,
 - **Sandbox-only workaround:** Maven Central returned 429 there, so a Gradle init script read it from Google's mirror. A normal machine shouldn't need this.
 
 ## Open items and next steps
-1. **You:** set up the server per `docs/TRY_IT.md`, including the SSH tunnel section. Install the APK and report crashes or odd screens.
-2. **TPASS:**
-   - TRA and intercity legs show "may be covered"; they need a station-to-city mapping and train-class rules.
-   - The pass rules are unverified (`verifiedAt: null`), including YouBike under 桃竹竹苗.
-3. **TDX:**
-   - Email tdx@motc.gov.tw to confirm the datasets are 免審核 (no review needed) and that the attribution wording is right.
-   - A paid plan is needed for wider live coverage.
-4. **App rough edges:**
-   - The map starts on Taipei until the phone's location is known.
-   - The server address is typed by hand.
-   - The API has no auth.
-   - A release build needs a real signing key (EAS).
-5. **Untested:**
-   - the docker-compose healthcheck (no Docker in the sandbox);
-   - Hsinchu County's live-ETA coverage across a full day (65A was live at 06:47);
-   - auto-start on reboot (not built; run `infra/scripts/try-it.sh` after a reboot).
+Updated 2026-10-24, after the first local session (Hsinchu running on a home Ubuntu server, app on a phone and the MuMu emulator; details in docs/DATA.md):
+
+**Done:**
+- Server set up; the APK builds on Windows with `apps/mobile/scripts/build-apk.ps1`.
+- *May not run* warnings on buses during suspensions; a YouBike notice when nearby stations are closed.
+- TPASS for the four 桃竹竹苗 passes (`verifiedAt` set): trains by station and class, intercity buses by where their stops are, YouBike free minutes.
+- Search in Chinese and English whatever the app's language.
+- The map opens where the user was last.
+- Server discovery on the Wi-Fi and an optional access key (`API_TOKEN`).
+- `try-it.sh autostart`.
+
+**Still open:**
+1. **TPASS:** verify 基北北桃, 中彰投苗 and 南高屏 against their official pages (their station ranges, YouBike rules and intercity lists); the Airport MRT (A7–A22 for the Taoyuan passes) is still "may be covered".
+2. **TDX:** email tdx@motc.gov.tw about 免審核 and the attribution wording; a paid plan is needed for wider live coverage.
+3. **Release:** a real signing key (see the build script's header, or EAS).
+4. **Measure:** run `infra/scripts/live-coverage.sh` for a normal day (Hsinchu County coverage), and check YouBike trips once the typhoon suspension ends.
+5. **Suspensions** are inferred from live data only; TDX's bus news and TRA alerts could add the operators' own announcements.
 
 ## Repository state
 - **Branch:** `claude/eager-lovelace-70z86n` on https://github.com/wislibot/TWCommute (public), at HEAD `6fecc88` plus this hand-off commit. Everything is pushed, and no pull request is open.

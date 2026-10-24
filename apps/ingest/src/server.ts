@@ -40,7 +40,7 @@ export function createServer(deps: ServerDeps): FastifyInstance {
 
   app.get("/health", async () => {
     const feeds = health.snapshot();
-    return { status: feeds.every((f) => f.healthy) ? "ok" : "degraded", feeds };
+    return { status: feeds.every((f) => f.healthy) ? "ok" : "degraded", feeds, busLive: state.busEta.liveCounts() };
   });
 
   // GBFS for OpenTripPlanner's vehicle-rental updater.

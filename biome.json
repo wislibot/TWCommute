@@ -7,7 +7,14 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": ["**", "!**/schema.graphqls", "!**/*.gen.ts", "!apps/mobile/assets", "!apps/mobile/expo-env.d.ts"]
+    "includes": [
+      "**",
+      "!**/schema.graphqls",
+      "!**/*.gen.ts",
+      "!**/*.topo.json",
+      "!apps/mobile/assets",
+      "!apps/mobile/expo-env.d.ts"
+    ]
   },
   "formatter": {
     "enabled": true,

@@ -1,11 +1,12 @@
 import { Stack, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, FlatList, StyleSheet, View } from "react-native";
-import { ModeChip, RealtimeBadge } from "@/components/badges";
+import { ModeChip, RealtimeBadge, ServiceAlertBadge } from "@/components/badges";
 import { DataCredit } from "@/components/data-credit";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useTheme } from "@/hooks/use-theme";
+import { errorText } from "@/lib/api";
 import { formatTime, minutesUntil } from "@/lib/format";
 import { useDepartures, useLocale } from "@/lib/hooks";
 
@@ -33,7 +34,7 @@ export default function StopScreen() {
         ListFooterComponent={<DataCredit />}
         ListEmptyComponent={
           <ThemedText themeColor="textSecondary" style={styles.empty}>
-            {board.isError ? t("errors.network") : t("stop.noDepartures")}
+            {board.isError ? t(errorText(board.error)) : t("stop.noDepartures")}
           </ThemedText>
         }
         renderItem={({ item }) => (
@@ -43,7 +44,10 @@ export default function StopScreen() {
               {item.headsign && (
                 <ThemedText numberOfLines={1}>{t("leg.towards", { headsign: item.headsign })}</ThemedText>
               )}
-              <RealtimeBadge realtime={item.realtime} />
+              <View style={styles.badges}>
+                <RealtimeBadge realtime={item.realtime} />
+                {item.serviceAlert && <ServiceAlertBadge />}
+              </View>
             </View>
             <View style={styles.time}>
               {item.live && item.live.etaSeconds !== null ? (
@@ -76,4 +80,5 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   time: { alignItems: "flex-end", minWidth: 80 },
+  badges: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
 });

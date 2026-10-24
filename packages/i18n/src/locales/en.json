@@ -61,6 +61,11 @@
     "arriving": "Arriving",
     "lastBus": "Last bus"
   },
+  "alert": {
+    "mayNotRun": "May not run",
+    "not_operating_today": "The operator says this route isn't running today.",
+    "no_live_service": "No live data from this operator right now. Buses may not be running (for example during a typhoon)."
+  },
   "risk": {
     "low": "Docks look fine",
     "medium": "Dock may be busy",
@@ -100,11 +105,17 @@
     "serverSave": "Save",
     "serverSaved": "Saved.",
     "serverInvalid": "That isn't a server address. Example: http://192.168.1.20:3000",
+    "accessKey": "Access key (only if the server has one)",
+    "findServer": "Find a server on this Wi-Fi",
+    "searching": "Looking for a TWCommute server on this Wi-Fi…",
+    "serversFound": "Tap an address to use it:",
+    "noServerFound": "No server found. Check that the phone is on the same Wi-Fi as the server, or as the laptop running the SSH tunnel.",
     "about": "About",
     "dataSource": "Transit data source: 交通部運輸資料流通服務平臺 (Ministry of Transportation and Communications, Transport Data eXchange). Map data © OpenStreetMap contributors."
   },
   "errors": {
     "network": "Can't reach the TWCommute server. Check your connection and the server address in Settings.",
-    "generic": "Something went wrong."
+    "generic": "Something went wrong.",
+    "unauthorized": "The server needs an access key. Enter it in Settings → Server."
   }
 }

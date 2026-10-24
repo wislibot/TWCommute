@@ -7,6 +7,7 @@ import { PrimaryButton } from "@/components/form";
 import { ItineraryCard } from "@/components/itinerary-card";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { errorText } from "@/lib/api";
 import { bboxAround, bikesOutOfService } from "@/lib/geo";
 import { useBikes, usePlan } from "@/lib/hooks";
 import { useDraft } from "@/lib/store";
@@ -29,7 +30,7 @@ export default function ResultsScreen() {
   if (plan.isError) {
     return (
       <ThemedView style={styles.center}>
-        <ThemedText>{t("errors.network")}</ThemedText>
+        <ThemedText>{t(errorText(plan.error))}</ThemedText>
         <PrimaryButton title={t("common.retry")} onPress={() => plan.refetch()} />
       </ThemedView>
     );

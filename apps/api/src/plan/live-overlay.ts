@@ -35,6 +35,8 @@ function isLeavingSoon(leg: Leg, now: Date, windowMinutes: number): boolean {
 export const ETA_MATCH_TOLERANCE_MS = 10 * 60_000;
 
 export function applyEta(leg: Leg, eta: EtaResult | null): Leg {
+  // TDX StopStatus 4: the operator says this route does not run today.
+  if (eta?.stopStatus === 4) return { ...leg, serviceAlert: "not_operating_today" };
   if (!eta || eta.etaSeconds === null) return leg;
   const predicted = Date.parse(eta.asOf) + eta.etaSeconds * 1000;
   if (Date.parse(leg.start.scheduled) - predicted > ETA_MATCH_TOLERANCE_MS) return leg;

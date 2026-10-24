@@ -7,12 +7,13 @@ import { planWithStops } from "./chain";
 import { addDockRisk } from "./dock-risk";
 import { overlayLiveBus } from "./live-overlay";
 import { mapItinerary } from "./map";
+import { markSilentFeeds, silentFeeds } from "./service-alert";
 import { addTpassCoverage } from "./tpass";
 import { buildPlanVariables } from "./variables";
 
 export interface PlanDeps {
   otp: Pick<OtpClient, "query">;
-  ingest: Pick<IngestClient, "busEta" | "bikesNearby">;
+  ingest: Pick<IngestClient, "busEta" | "bikesNearby"> & Partial<Pick<IngestClient, "health">>;
   liveWindowMinutes: number;
   now?: () => Date;
 }
@@ -22,7 +23,9 @@ export async function plan(req: PlanRequest, deps: PlanDeps): Promise<PlanRespon
   const routed = req.vias.length > 0 ? await planWithStops(req, deps.otp, now) : await planDirect(req, deps, now);
 
   let itineraries = routed.itineraries;
+  const health = deps.ingest.health?.().catch(() => null) ?? Promise.resolve(null);
   itineraries = await overlayLiveBus(itineraries, deps.ingest, now, deps.liveWindowMinutes);
+  itineraries = markSilentFeeds(itineraries, silentFeeds(await health, now), now);
   itineraries = await addDockRisk(itineraries, deps.ingest, now);
   itineraries = addTpassCoverage(itineraries, req.tpassId);
   return { ...routed, itineraries };

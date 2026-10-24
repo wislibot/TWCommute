@@ -135,6 +135,14 @@ export const RouteInfo = z.object({
 });
 export type RouteInfo = z.infer<typeof RouteInfo>;
 
+/**
+ * Why a bus may not run although the timetable lists it: TDX marks the route "not operating today"
+ * at this stop (StopStatus 4), or the operator reports no live bus at all during service hours (e.g.
+ * a typhoon suspension). The timetable is still shown; the app warns next to it.
+ */
+export const ServiceAlert = z.enum(["not_operating_today", "no_live_service"]);
+export type ServiceAlert = z.infer<typeof ServiceAlert>;
+
 export const LiveArrival = z.object({
   /** Seconds until the vehicle reaches the boarding stop, as of `asOf`. */
   etaSeconds: z.number().int().nullable(),
@@ -159,6 +167,7 @@ export const Leg = z.object({
   tripId: z.string().optional(),
   realtime: Realtime,
   live: LiveArrival.optional(),
+  serviceAlert: ServiceAlert.optional(),
   rentedBike: z.boolean().default(false),
   dockRisk: DockRisk.optional(),
 });
@@ -220,6 +229,7 @@ export const Departure = z.object({
   estimated: z.string().optional(),
   realtime: Realtime,
   live: LiveArrival.optional(),
+  serviceAlert: ServiceAlert.optional(),
 });
 export type Departure = z.infer<typeof Departure>;
 
@@ -269,6 +279,8 @@ export type FeedHealth = z.infer<typeof FeedHealth>;
 export const HealthResponse = z.object({
   status: z.enum(["ok", "degraded"]),
   feeds: z.array(FeedHealth),
+  /** Per bus ETA feed (TDX city name or "InterCity"): how many stop/route rows carry a live prediction. */
+  busLive: z.record(z.string(), z.number().int()).optional(),
 });
 export type HealthResponse = z.infer<typeof HealthResponse>;
 

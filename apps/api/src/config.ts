@@ -7,6 +7,11 @@ const EnvSchema = z.object({
   OTP_URL: z.string().default("http://localhost:8080/otp/gtfs/v1"),
   INGEST_URL: z.string().default("http://localhost:8081"),
   INTERNAL_TOKEN: z.string().optional(),
+  /**
+   * Access key for the app's API. When set, every /v1 route except /v1/health needs
+   * `Authorization: Bearer <key>`; the app sends it from Settings → Server.
+   */
+  API_TOKEN: z.string().min(16).optional(),
   /** Requests per minute per IP for /v1/plan (routing is CPU-heavy). */
   PLAN_RATE_LIMIT_PER_MIN: z.coerce.number().int().positive().default(30),
   /** Bus legs departing within this window get the TDX live-ETA overlay. */

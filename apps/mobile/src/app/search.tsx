@@ -6,6 +6,7 @@ import { ModeChip } from "@/components/badges";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useTheme } from "@/hooks/use-theme";
+import { errorText } from "@/lib/api";
 import { useLocale, useSearch } from "@/lib/hooks";
 import { type PlaceTarget, useDraft } from "@/lib/store";
 
@@ -52,7 +53,7 @@ export default function SearchScreen() {
         ListEmptyComponent={
           results.isError ? (
             <ThemedText type="small" themeColor="textSecondary" style={styles.empty}>
-              {t("errors.network")}
+              {t(errorText(results.error))}
             </ThemedText>
           ) : null
         }

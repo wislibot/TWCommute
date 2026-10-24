@@ -213,3 +213,21 @@ Trips through the API at 06:47:
 
 **Long YouBike-only trips are now capped at 45 minutes** (`maxDirectStreetDurationForMode`). Before, the first option to Zhudong was an 81-minute YouBike ride. Bike legs inside transit trips were already limited to 25 minutes.
 
+
+## Hsinchu on a home server, typhoon day (2026-10-24)
+
+Found while running the Hsinchu region on a home Ubuntu server, during the 薔琵 typhoon.
+
+**Suspensions show up as silence, not as data.**
+- Every YouBike station in Hsinchu City, Hsinchu County, the Science Park, Taoyuan, Miaoli and Taichung reported `ServiceStatus` 0 or 2 with no bikes and no docks, in TDX and in YouBike's own feed (`apis.youbike.com.tw`). Southern cities ran normally. OTP then plans no YouBike legs, and the app now says why.
+- Hsinchu City's buses were suspended too, but the timetable still lists them, and no bus had a live prediction. Ingest now counts live predictions per bus feed (`/health` → `busLive`); between 07:00 and 21:00 a fresh feed with none marks its bus legs and departures *may not run* (`no_live_service`). TDX's `StopStatus` 4 (not operating today) marks a leg the same way (`not_operating_today`).
+- `infra/scripts/live-coverage.sh` logs `busLive` through a day, to measure how much of the day each operator reports live times (still to run on a normal day).
+
+**TPASS (桃竹竹苗), checked against Hsinchu City's official Q&A (updated 2023-09-23):**
+- There are four passes: 竹竹 NT$288, 桃竹竹 NT$799, 竹竹苗 NT$699 and 桃竹竹苗 NT$1200. Each covers its cities' city buses, intercity buses with both ends inside, YouBike rented inside (first 30 minutes free in Hsinchu and Miaoli, 60 in Taoyuan) and TRA within station ranges that end at the city borders (竹竹: 北湖–香山, 六家線, 內灣線).
+- TRA: every class except Taroko, Puyuma, EMU3000, tour and group trains. TDX route ids end in the class (`TRA_<trainNo>_<dir>_<class>`). TRA's open timetable (`ods.railway.gov.tw`) of 2026-10-24 places them: 1101 Taroko, 1107 Puyuma, 110G/110H/110K/110M exactly the 自強(3000) train numbers; 1108/1109/110A/110F 自強, 1110 莒光, 1131 區間, 1132 區間快. Class 1150 (two date-specific extra trains) stays unknown.
+- Stations and intercity stops carry no city in their ids, so the API places them on the Ministry of the Interior's county borders (taiwan-atlas TopoJSON, MIT). Checked on TRA's station list: all 245 stations with an address land in their address's city, except 八斗子, which TRA lists under New Taipei but sits on the Keelung side (same pass either way).
+
+**Search:**
+- OTP's `name` filter matches only the requested language's names and their exact spelling. In English, 清華大學 found nothing, and "Tsing Hua" found nothing either.
+- The API now searches its own index of every stop's Chinese and English names. It ignores case, spaces and punctuation and treats 臺 as 台, and loads from OTP once every 6 hours.

@@ -37,6 +37,16 @@ describe("BusEtaStore", () => {
     s.replace("Taipei", []);
     expect(s.size()).toBe(0);
   });
+
+  it("counts live predictions per feed (none = buses not running)", () => {
+    const s = new BusEtaStore();
+    s.replace("Taipei", busEtas);
+    s.replace("Hsinchu", [{ StopUID: "HSZ1", RouteUID: "HSZ10", Direction: 0, StopStatus: 1 }]);
+    expect(s.liveCounts()).toEqual({
+      Taipei: busEtas.filter((r) => typeof r.EstimateTime === "number").length,
+      Hsinchu: 0,
+    });
+  });
 });
 
 describe("BusEtaStore sub-route keys (TDX GTFS route_id = <SubRouteUID>_<Direction>)", () => {

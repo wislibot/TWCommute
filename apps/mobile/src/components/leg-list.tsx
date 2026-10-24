@@ -60,6 +60,11 @@ function LegRow({ leg }: { leg: Leg }) {
             {leg.live.isLastBus ? ` · ${t("realtime.lastBus")}` : ""}
           </ThemedText>
         )}
+        {leg.serviceAlert && (
+          <ThemedText type="small" style={{ color: theme.warning }}>
+            {t(`alert.${leg.serviceAlert}`)}
+          </ThemedText>
+        )}
         {leg.mode === "WALK" && (
           <ThemedText type="small" themeColor="textSecondary">
             {t("results.walk", { distance: formatDistance(leg.distanceMeters) })}

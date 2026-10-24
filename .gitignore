@@ -16,6 +16,8 @@ apps/mobile/.expo/
 apps/mobile/ios/
 apps/mobile/android/
 apps/mobile/dist/
+*.apk
+*.aab
 *.jks
 *.p8
 *.p12

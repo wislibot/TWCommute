@@ -120,10 +120,13 @@ export const STOP_DEPARTURES_QUERY = /* GraphQL */ `
   }
 `;
 
-/** Stop/station name search (MVP place search; a POI geocoder is added later). */
-export const SEARCH_QUERY = /* GraphQL */ `
-  query Search($q: String!, $lang: String) {
-    stations(name: $q) { gtfsId name(language: $lang) code lat lon vehicleMode }
-    stops(name: $q) { gtfsId name(language: $lang) code lat lon vehicleMode parentStation { gtfsId } }
+/**
+ * Every station and stop with its Chinese and English names, for the API's own name search
+ * (stops/search.ts). OTP's `name` filter matches one language only and the exact spelling.
+ */
+export const SEARCH_INDEX_QUERY = /* GraphQL */ `
+  query SearchIndex {
+    stations { gtfsId zh: name(language: "zh") en: name(language: "en") lat lon vehicleMode }
+    stops { gtfsId zh: name(language: "zh") en: name(language: "en") lat lon vehicleMode parentStation { gtfsId } }
   }
 `;

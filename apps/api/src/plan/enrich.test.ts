@@ -92,7 +92,12 @@ describe("dock risk", () => {
 
 describe("TPASS coverage", () => {
   it("describes legs for the fare engine", () => {
-    expect(toFareLeg(legAt(0))).toEqual({ tpassMode: "bike_share", fromCity: "Taipei", toCity: "Taipei" });
+    expect(toFareLeg(legAt(0))).toEqual({
+      tpassMode: "bike_share",
+      fromCity: "Taipei",
+      toCity: "Taipei",
+      minutes: legAt(0).durationSeconds / 60,
+    });
     expect(toFareLeg(legAt(1))).toEqual({ tpassMode: "metro", fromCity: "Taipei", toCity: "Taipei" });
     expect(toFareLeg(legAt(2)).tpassMode).toBeNull();
     expect(toFareLeg(legAt(busLegIndex))).toEqual({ tpassMode: "city_bus", fromCity: "Taipei", toCity: "Taipei" });
@@ -116,9 +121,36 @@ describe("TPASS coverage", () => {
     expect(toFareLeg(rail({ id: "other:0108", agencyName: "臺灣高速鐵路股份有限公司" })).tpassMode).toBe("thsr");
   });
 
-  it("keeps TRA trains as local trains", () => {
-    const tra = rail({ id: "tw:TRA_1004_0_1132", agencyName: "交通部臺灣鐵路管理局", longName: "埔心-七堵" });
-    expect(toFareLeg(tra)).toEqual({ tpassMode: "tra_local", fromCity: null, toCity: null });
+  // 新竹 → 竹南 and 新竹 → 竹北 as TRA stations sit (TRA_1210, TRA_1250, TRA_1180).
+  const hsinchu = { name: "新竹", lat: 24.80166, lon: 120.97162, stopId: "tw:TRA_1210" };
+  const zhunan = { name: "竹南", lat: 24.68661, lon: 120.88071, stopId: "tw:TRA_1250" };
+  const zhubei = { name: "竹北", lat: 24.83924, lon: 121.00942, stopId: "tw:TRA_1180" };
+  const train = (type: string, to = zhunan): Leg => ({
+    ...rail({ id: `tw:TRA_1107_1_${type}`, agencyName: "交通部臺灣鐵路管理局" }),
+    from: hsinchu,
+    to,
+  });
+
+  it("places TRA trains by station and class", () => {
+    expect(toFareLeg(train("1131"))).toEqual({ tpassMode: "tra_local", fromCity: "Hsinchu", toCity: "MiaoliCounty" });
+    expect(coverageOf(train("1131"), "tchhm")).toBe("covered");
+    expect(coverageOf(train("1131"), "hc")).toBe("not_covered");
+    expect(coverageOf(train("1131", zhubei), "hc")).toBe("covered");
+    // Puyuma and EMU3000 are not TPASS trains; an unseen class may or may not be.
+    expect(coverageOf(train("1107"), "tchhm")).toBe("not_covered");
+    expect(coverageOf(train("110G", zhubei), "hc")).toBe("not_covered");
+    expect(coverageOf(train("1150", zhubei), "hc")).toBe("unknown");
+  });
+
+  it("places intercity stops by where they are", () => {
+    const bus = legAt(busLegIndex);
+    const intercity: Leg = {
+      ...bus,
+      from: { ...hsinchu, stopId: "tw:THB268988" },
+      to: { name: "臺北", lat: 25.0478, lon: 121.517, stopId: "tw:THB1" },
+    };
+    expect(toFareLeg(intercity)).toEqual({ tpassMode: "intercity_bus", fromCity: "Hsinchu", toCity: "Taipei" });
+    expect(coverageOf(intercity, "tchhm")).toBe("not_covered");
   });
 
   it("covers a Hsinchu City to Hsinchu County bus with 桃竹竹苗", () => {

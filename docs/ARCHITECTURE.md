@@ -36,7 +36,7 @@
 
 **Stays at stops along the way.** OTP 2.10 can plan a trip with stops in one via search, but on the full-Taiwan graph that takes 18–24 s against 2–3 s for a plain search (Phase 0, `docs/DATA.md`). So the API plans one plain search per segment (`apps/api/src/plan/chain.ts`): the first segment from the requested time, each later segment once from the earliest moment any option can leave the stop (arrival + stay). Each option continues with the later option that arrives first among those leaving after its stay, so every stay is at least what was asked, and spare time falls at the stop rather than at the next bus stop. One via costs two OTP searches. Arrive-by trips are chained backwards. Verified against OTP 2.10 by `infra/smoke`.
 
-**Honest labels.** Every leg and departure is `live` or `scheduled`; dock availability is `null` when no live data exists; TPASS coverage is `unknown` when a leg can't be placed in a city.
+**Honest labels.** Every leg and departure is `live` or `scheduled`; a timetabled bus carries a `serviceAlert` when live data says it may not run; dock availability is `null` when no live data exists; TPASS coverage is `unknown` when a leg can't be placed in a city or its train class is unknown.
 
 **YouBike via GBFS.** One GBFS system per docked service type (2.0 incl. 2.0E e-bikes, and 1.0), so OTP never routes a 2.0 bike into a 1.0 dock. Moovo (e-fence, no docks) is excluded for now.
 
@@ -47,7 +47,7 @@
 | Endpoint | Purpose |
 | --- | --- |
 | `POST /v1/plan` | Plan with up to 5 stops along the way (dwell minutes each), depart-at/arrive-by, transit modes, YouBike on/off, TPASS pass, locale, paging cursor. |
-| `GET /v1/search?q=&locale=` | Stations and stops by name (MVP; a POI geocoder comes later). |
+| `GET /v1/search?q=&locale=` | Stations and stops by Chinese or English name, from the API's own index of OTP's stops (a POI geocoder comes later). |
 | `GET /v1/stops/nearby?lat=&lon=` | Stops near a point. |
 | `GET /v1/stops/:id/departures` | Next departures with live ETAs. |
 | `GET /v1/bikes?minLat=…` | YouBike stations in a small bounding box. |

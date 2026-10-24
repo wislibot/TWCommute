@@ -9,9 +9,15 @@ interface SettingsState {
   tpassId: string | null;
   /** Backend address entered in Settings; null = the built-in API_URL. */
   apiUrl: string | null;
+  /** The server's access key (API_TOKEN), when it has one. */
+  apiToken: string | null;
+  /** Where the user was last seen, so the map opens there instead of on Taipei. */
+  lastPosition: { lat: number; lon: number } | null;
   setLocale: (locale: Locale | null) => void;
   setTpassId: (id: string | null) => void;
   setApiUrl: (url: string | null) => void;
+  setApiToken: (token: string | null) => void;
+  setLastPosition: (pos: { lat: number; lon: number }) => void;
 }
 
 let markLoaded: () => void = () => {};
@@ -31,9 +37,13 @@ export const useSettings = create<SettingsState>()(
       locale: null,
       tpassId: null,
       apiUrl: null,
+      apiToken: null,
+      lastPosition: null,
       setLocale: (locale) => set({ locale }),
       setTpassId: (tpassId) => set({ tpassId }),
       setApiUrl: (apiUrl) => set({ apiUrl }),
+      setApiToken: (apiToken) => set({ apiToken }),
+      setLastPosition: (lastPosition) => set({ lastPosition }),
     }),
     {
       name: "twc-settings",

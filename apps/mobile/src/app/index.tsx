@@ -10,10 +10,12 @@ import { BikeOutageNotice } from "@/components/bike-outage";
 import { ThemedText } from "@/components/themed-text";
 import { TransitMap } from "@/components/transit-map";
 import { useTheme } from "@/hooks/use-theme";
+import { errorText } from "@/lib/api";
 import { DEFAULT_CENTER } from "@/lib/config";
 import { formatDistance } from "@/lib/format";
 import { bikesGeoJson, bikesOutOfService } from "@/lib/geo";
 import { useBikes, useCurrentPosition, useNearbyStops } from "@/lib/hooks";
+import { useSettings } from "@/lib/store";
 
 /** Only load bike stations once zoomed in far enough for the dots to be useful. */
 const MIN_BIKE_ZOOM = 14;
@@ -26,12 +28,24 @@ export default function HomeScreen() {
   const [bbox, setBbox] = useState<BBox | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const bikes = useBikes(bbox);
-  const nearby = useNearbyStops(pos ?? { lat: DEFAULT_CENTER[1], lon: DEFAULT_CENTER[0] });
+  const { lastPosition, setLastPosition } = useSettings();
+  // Until the phone's location arrives, start where the user was last seen rather than on Taipei.
+  const target = pos ?? lastPosition;
+  const nearby = useNearbyStops(target ?? { lat: DEFAULT_CENTER[1], lon: DEFAULT_CENTER[0] });
 
   // A position that arrives before the map has loaded would be dropped, leaving the map on Taipei.
+  const [targetLat, targetLon] = [target?.lat, target?.lon];
   useEffect(() => {
-    if (pos && mapReady) camera.current?.flyTo({ center: [pos.lon, pos.lat], zoom: 15 });
-  }, [pos, mapReady]);
+    if (targetLat !== undefined && targetLon !== undefined && mapReady)
+      camera.current?.flyTo({ center: [targetLon, targetLat], zoom: 15 });
+  }, [targetLat, targetLon, mapReady]);
+
+  // Remember the position to about 100 m, so GPS jitter does not rewrite storage.
+  useEffect(() => {
+    if (!pos) return;
+    const rounded = { lat: Math.round(pos.lat * 1000) / 1000, lon: Math.round(pos.lon * 1000) / 1000 };
+    if (rounded.lat !== lastPosition?.lat || rounded.lon !== lastPosition?.lon) setLastPosition(rounded);
+  }, [pos, lastPosition, setLastPosition]);
 
   const onRegionDidChange = (e: NativeSyntheticEvent<ViewStateChangeEvent>) => {
     const { zoom, bounds } = e.nativeEvent;
@@ -101,7 +115,7 @@ export default function HomeScreen() {
           style={styles.list}
           ListEmptyComponent={
             <ThemedText type="small" themeColor="textSecondary">
-              {nearby.isError ? t("errors.network") : nearby.isLoading ? t("common.loading") : ""}
+              {nearby.isError ? t(errorText(nearby.error)) : nearby.isLoading ? t("common.loading") : ""}
             </ThemedText>
           }
           renderItem={({ item }) => (

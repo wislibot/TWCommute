@@ -104,6 +104,8 @@ export function etaServesSubRoute(e: EtaRouteFields, subRouteUid: string, varian
  */
 export class BusEtaStore {
   private byFeed = new Map<string, Map<string, EtaResult[]>>();
+  /** Rows with a live prediction per feed: none at midday means the operator's buses are not running. */
+  private liveByFeed = new Map<string, number>();
   /** Sub-route lists per feed, replaced on each refresh. */
   private routesByFeed = new Map<string, SubRouteIndex>();
 
@@ -134,8 +136,10 @@ export class BusEtaStore {
 
   replace(feed: string, rows: TdxBusEta[]): number {
     const byStop = new Map<string, EtaResult[]>();
+    let live = 0;
     for (const r of rows) {
       if (!r.StopUID || !r.RouteUID) continue;
+      if (typeof r.EstimateTime === "number") live++;
       const entry: EtaResult = {
         stopUid: r.StopUID,
         routeUid: r.RouteUID,
@@ -152,7 +156,13 @@ export class BusEtaStore {
       else byStop.set(r.StopUID, [entry]);
     }
     this.byFeed.set(feed, byStop);
+    this.liveByFeed.set(feed, live);
     return byStop.size;
+  }
+
+  /** Rows with a live prediction, per feed polled so far. */
+  liveCounts(): Record<string, number> {
+    return Object.fromEntries(this.liveByFeed);
   }
 
   /** All routes' ETAs at a stop. */

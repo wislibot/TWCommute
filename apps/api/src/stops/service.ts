@@ -5,10 +5,11 @@ import type { OtpClient } from "../otp/client";
 import { STOP_DEPARTURES_QUERY, STOPS_NEARBY_QUERY } from "../otp/queries";
 import type { OtpStopDeparturesData, OtpStopsNearbyData } from "../otp/types";
 import { mapMode } from "../plan/map";
+import { serviceAlert, silentFeeds } from "../plan/service-alert";
 
 export interface StopDeps {
   otp: Pick<OtpClient, "query">;
-  ingest: Pick<IngestClient, "busEta">;
+  ingest: Pick<IngestClient, "busEta"> & Partial<Pick<IngestClient, "health">>;
   now?: () => Date;
 }
 
@@ -131,12 +132,20 @@ export async function stopDepartures(stopId: string, deps: StopDeps): Promise<De
   }
   const headwayRoutes = [...headway.values()];
 
-  const results = await lookupEtas(
-    [...targets.map((t) => t.query as EtaQuery), ...headwayRoutes.map((h) => h.query)],
-    deps.ingest,
-  );
+  const [results, health] = await Promise.all([
+    lookupEtas([...targets.map((t) => t.query as EtaQuery), ...headwayRoutes.map((h) => h.query)], deps.ingest),
+    deps.ingest.health?.().catch(() => null) ?? null,
+  ]);
+  const silent = silentFeeds(health, now);
+  for (const row of rows) {
+    if (row.query && row.dep.realtime !== "live") {
+      const alert = serviceAlert(stopUid ?? undefined, null, silent);
+      if (alert) row.dep.serviceAlert = alert;
+    }
+  }
   for (const [k, row] of targets.entries()) {
     const eta = results[k];
+    if (eta?.stopStatus === 4) row.dep.serviceAlert = "not_operating_today";
     if (!eta || eta.etaSeconds === null) continue;
     row.dep.realtime = "live";
     row.dep.live = { etaSeconds: eta.etaSeconds, asOf: eta.asOf, source: "tdx-eta", isLastBus: eta.isLastBus };

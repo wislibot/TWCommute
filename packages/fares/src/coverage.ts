@@ -7,6 +7,10 @@ export interface FareLeg {
   tpassMode: TpassMode | "thsr" | "other" | null;
   fromCity: City | null;
   toCity: City | null;
+  /** Riding time; YouBike rides longer than a pass's free minutes cost the usual fare for the rest. */
+  minutes?: number;
+  /** The vehicle may or may not be one the pass accepts (e.g. a TRA train class we cannot place). */
+  uncertain?: boolean;
 }
 
 export type Coverage = "covered" | "partial" | "not_covered" | "unknown";
@@ -17,8 +21,18 @@ function legCoverage(pass: TpassPass, leg: FareLeg): LegCoverage | null {
   if (leg.tpassMode === null) return null;
   if (leg.tpassMode === "thsr" || leg.tpassMode === "other") return "not_covered";
   if (!pass.modes.includes(leg.tpassMode)) return "not_covered";
-  if (leg.fromCity === null || leg.toCity === null) return "unknown";
-  return pass.cities.includes(leg.fromCity) && pass.cities.includes(leg.toCity) ? "covered" : "not_covered";
+  let result: LegCoverage;
+  if (leg.tpassMode === "bike_share") {
+    // YouBike counts by where the bike is rented, for the pass's free minutes.
+    if (leg.fromCity === null) return "unknown";
+    if (!pass.cities.includes(leg.fromCity)) return "not_covered";
+    const free = pass.bikeFreeMinutes?.[leg.fromCity];
+    result = free === undefined || leg.minutes === undefined || leg.minutes <= free ? "covered" : "not_covered";
+  } else {
+    if (leg.fromCity === null || leg.toCity === null) return "unknown";
+    result = pass.cities.includes(leg.fromCity) && pass.cities.includes(leg.toCity) ? "covered" : "not_covered";
+  }
+  return result === "covered" && leg.uncertain ? "unknown" : result;
 }
 
 /**

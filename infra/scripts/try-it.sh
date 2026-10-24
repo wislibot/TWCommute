@@ -9,6 +9,7 @@
 #   infra/scripts/try-it.sh stop       stop everything
 #   infra/scripts/try-it.sh status     show the region, what is running and how fresh the live data is
 #   infra/scripts/try-it.sh rebuild    download fresh timetables, rebuild the active region, then start
+#   infra/scripts/try-it.sh autostart  start the active region again after every reboot (`autostart off` to stop)
 #
 # Downloads are shared (data/gtfs, data/osm, data/tools) and each region builds into data/otp-<region>,
 # so switching back to a built region only restarts the services. data/run holds the logs, the pid
@@ -55,7 +56,7 @@ need() { command -v "$1" >/dev/null 2>&1 || die "$1 is not installed. $2"; }
 usage() {
   cat >&2 <<EOF
 Choose a region: $SELF hsinchu  (or taipei)
-Then, for the active region: $SELF start | stop | status | rebuild
+Then, for the active region: $SELF start | stop | status | rebuild | autostart [on|off]
 EOF
   exit 1
 }
@@ -323,16 +324,41 @@ how_to_connect() {
     echo "The API listens on this server only (API_HOST=$API_HOST). On a laptop on your phone's Wi-Fi, run and keep open:"
     echo "  ssh -N -o ServerAliveInterval=30 -o ExitOnForwardFailure=yes -L 0.0.0.0:$API_PORT:127.0.0.1:$API_PORT $(id -un)@${server:-THIS-SERVER}"
     echo "In the app: Settings -> Server, enter:  http://LAPTOP-WIFI-IP:$API_PORT   (Windows: ipconfig; see docs/TRY_IT.md)"
-    return
-  fi
-  addr="$(phone_ip)"
-  if [ -n "$addr" ]; then
-    echo "In the app: Settings -> Server, enter:  http://$addr:$API_PORT"
   else
-    echo "In the app: Settings -> Server, enter:  http://THIS-COMPUTER-IP:$API_PORT"
-    echo "(This computer's IP was not found: look it up in its Wi-Fi settings, or run: ip -4 addr)"
+    addr="$(phone_ip)"
+    if [ -n "$addr" ]; then
+      echo "In the app: Settings -> Server, enter:  http://$addr:$API_PORT   (or tap: Find a server on this Wi-Fi)"
+    else
+      echo "In the app: Settings -> Server, enter:  http://THIS-COMPUTER-IP:$API_PORT"
+      echo "(This computer's IP was not found: look it up in its Wi-Fi settings, or run: ip -4 addr)"
+    fi
+    echo "Phone and computer must be on the same Wi-Fi."
   fi
-  echo "Phone and computer must be on the same Wi-Fi."
+  if [ -n "${API_TOKEN:-}" ]; then echo "Access key (Settings -> Server):  $API_TOKEN"; fi
+}
+
+# Start the active region after every reboot, from the user's crontab (no sudo needed). The line
+# carries this Node's folder, since cron starts with a bare PATH and nvm is not loaded there.
+AUTOSTART_TAG="# twcommute-autostart"
+autostart() {
+  local others
+  others="$(crontab -l 2>/dev/null | grep -vF "$AUTOSTART_TAG" || true)"
+  case "${1:-on}" in
+    on)
+      [ -n "$(active_region)" ] || die "Choose a region first: $SELF hsinchu  (or taipei)"
+      need crontab "Install cron: sudo apt install cron"
+      local line
+      # The wait lets the network come up; try-it.sh start then waits for TDX itself.
+      line="@reboot sleep 60 && PATH='$(dirname "$(command -v node)")':/usr/local/bin:/usr/bin:/bin '$ROOT/$SELF' start >> '$RUN/boot.log' 2>&1 $AUTOSTART_TAG"
+      printf '%s\n%s\n' "$others" "$line" | sed '/^$/d' | crontab -
+      echo "After a reboot, $(active_region) starts by itself within about 4 minutes. Log: $RUN/boot.log"
+      ;;
+    off)
+      printf '%s\n' "$others" | sed '/^$/d' | crontab -
+      echo "Autostart is off."
+      ;;
+    *) die "Use: $SELF autostart on|off" ;;
+  esac
 }
 
 stop() {
@@ -367,6 +393,8 @@ status() {
       .then((b) => {
         for (const f of b.feeds)
           console.log(`  ${f.feed}: ${f.ageSeconds === null ? "no data yet" : `${ago(f.ageSeconds)} old`}${f.lastError ? `, last error: ${f.lastError}` : ""}`);
+        // Stop/route pairs with a live prediction; 0 in the daytime means that operator is not running.
+        if (b.busLive) console.log(`  live bus predictions: ${Object.entries(b.busLive).map(([k, v]) => `${k} ${v}`).join(", ")}`);
       })
       .catch(() => console.log("  ingest is not answering (still starting?)"))' "$INGEST_LOCAL_URL/health"
 }
@@ -391,5 +419,6 @@ case "${1:-}" in
     ;;
   stop) stop ;;
   status) status ;;
+  autostart) autostart "${2:-on}" ;;
   *) echo "Unknown command '$1'." >&2; usage ;;
 esac

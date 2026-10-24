@@ -45,6 +45,15 @@ export function TpassBadge({ tpass }: { tpass: TpassCoverage }) {
   return <Text style={[styles.badge, { color, borderColor: color }]}>{t(`tpass.${tpass.coverage}`)}</Text>;
 }
 
+/** The timetable lists this bus, but live data says it may not run (see ServiceAlert). */
+export function ServiceAlertBadge() {
+  const { t } = useTranslation();
+  const theme = useTheme();
+  return (
+    <Text style={[styles.badge, { color: theme.warning, borderColor: theme.warning }]}>{t("alert.mayNotRun")}</Text>
+  );
+}
+
 export function DockRiskBadge({ risk }: { risk: DockRisk }) {
   const { t } = useTranslation();
   const theme = useTheme();
