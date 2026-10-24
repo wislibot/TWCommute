@@ -7,30 +7,46 @@ import "@/global.css";
 
 import { Platform } from "react-native";
 
+/**
+ * iOS system colors (Human Interface Guidelines), so the app reads as native on iPhone and calm on
+ * Android. `background` is the grouped background behind inset cards, `surface` the cards and sheets,
+ * `fill` the search fields and segmented controls.
+ */
 export const Colors = {
   light: {
     text: "#000000",
-    background: "#ffffff",
-    backgroundElement: "#F0F0F3",
-    backgroundSelected: "#E0E1E6",
-    textSecondary: "#60646C",
-    tint: "#0B6BCB",
-    border: "#E0E1E6",
-    success: "#15803D",
-    warning: "#B45309",
-    danger: "#B91C1C",
+    textSecondary: "#3C3C4399",
+    textTertiary: "#3C3C434D",
+    background: "#F2F2F7",
+    surface: "#FFFFFF",
+    /** Cards inside a sheet, which is itself `surface`. */
+    surfaceRaised: "#F2F2F7",
+    backgroundElement: "#FFFFFF",
+    backgroundSelected: "#E5E5EA",
+    fill: "#7676801F",
+    border: "#C6C6C8",
+    tint: "#007AFF",
+    success: "#248A3D",
+    warning: "#C93400",
+    danger: "#FF3B30",
+    notice: "#FF9500",
   },
   dark: {
-    text: "#ffffff",
+    text: "#FFFFFF",
+    textSecondary: "#EBEBF599",
+    textTertiary: "#EBEBF54D",
     background: "#000000",
-    backgroundElement: "#212225",
-    backgroundSelected: "#2E3135",
-    textSecondary: "#B0B4BA",
-    tint: "#5EA8FF",
-    border: "#2E3135",
-    success: "#4ADE80",
-    warning: "#FBBF24",
-    danger: "#F87171",
+    surface: "#1C1C1E",
+    surfaceRaised: "#2C2C2E",
+    backgroundElement: "#1C1C1E",
+    backgroundSelected: "#2C2C2E",
+    fill: "#7676803D",
+    border: "#38383A",
+    tint: "#0A84FF",
+    success: "#30D158",
+    warning: "#FF9F0A",
+    danger: "#FF453A",
+    notice: "#FF9F0A",
   },
 } as const;
 

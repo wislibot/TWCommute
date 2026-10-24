@@ -13,7 +13,9 @@
     "loading": "Loading…",
     "minutes": "{{count}} min",
     "currentLocation": "Current location",
-    "dataCredit": "Data: 交通部運輸資料流通服務平臺 (MOTC TDX)"
+    "dataCredit": "Data: 交通部運輸資料流通服務平臺 (MOTC TDX)",
+    "details": "Details",
+    "chooseOnMap": "Choose on map"
   },
   "plan": {
     "title": "Plan a trip",
@@ -26,7 +28,11 @@
     "arriveBy": "Arrive by",
     "useYouBike": "Use YouBike",
     "go": "Find routes",
-    "maxStops": "You can add up to {{count}} stops"
+    "maxStops": "You can add up to {{count}} stops",
+    "trip": "Trip",
+    "swap": "Swap start and destination",
+    "when": "When",
+    "options": "Options"
   },
   "results": {
     "title": "Routes",
@@ -35,7 +41,9 @@
     "walk": "Walk {{distance}}",
     "noRoutes": "No routes found. Try another time or turn on YouBike.",
     "later": "Later departures",
-    "earlier": "Earlier departures"
+    "earlier": "Earlier departures",
+    "details": "Route",
+    "leavesFrom": "Leaves {{time}} from {{place}}"
   },
   "leg": {
     "WALK": "Walk",
@@ -52,7 +60,8 @@
     "towards": "towards {{headsign}}",
     "stayAt": "Stay at {{place}} for {{minutes}} min",
     "pickUpBike": "Pick up a bike at {{station}}",
-    "returnBike": "Return the bike at {{station}}"
+    "returnBike": "Return the bike at {{station}}",
+    "getOffAt": "Get off at {{place}}"
   },
   "realtime": {
     "live": "Live",
@@ -82,7 +91,12 @@
     "bikes": "Bikes",
     "ebikes": "E-bikes",
     "docks": "Free docks",
-    "outage": "YouBike is closed or suspended here right now, so routes won't include it."
+    "outage": "YouBike is closed or suspended here right now, so routes won't include it.",
+    "outageShort": "YouBike is suspended nearby",
+    "nearby": "Nearby stations",
+    "closed": "Not in service",
+    "none": "No stations here",
+    "zoomIn": "Zoom in on the map to see YouBike stations."
   },
   "tpass": {
     "title": "TPASS",
@@ -105,7 +119,7 @@
     "serverSave": "Save",
     "serverSaved": "Saved.",
     "serverInvalid": "That isn't a server address. Example: http://192.168.1.20:3000",
-    "accessKey": "Access key (only if the server has one)",
+    "accessKey": "Access key (optional)",
     "findServer": "Find a server on this Wi-Fi",
     "searching": "Looking for a TWCommute server on this Wi-Fi…",
     "serversFound": "Tap an address to use it:",
@@ -117,5 +131,13 @@
     "network": "Can't reach the TWCommute server. Check your connection and the server address in Settings.",
     "generic": "Something went wrong.",
     "unauthorized": "The server needs an access key. Enter it in Settings → Server."
+  },
+  "home": {
+    "departures": "Departures",
+    "locate": "Show my location",
+    "noStops": "No stops nearby."
+  },
+  "pick": {
+    "hint": "Move the map until the pin is on the place."
   }
 }

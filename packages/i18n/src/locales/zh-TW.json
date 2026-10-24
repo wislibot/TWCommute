@@ -13,7 +13,9 @@
     "loading": "載入中…",
     "minutes": "{{count}} 分鐘",
     "currentLocation": "目前位置",
-    "dataCredit": "資料來源：交通部運輸資料流通服務平臺"
+    "dataCredit": "資料來源：交通部運輸資料流通服務平臺",
+    "details": "詳情",
+    "chooseOnMap": "在地圖上選擇"
   },
   "plan": {
     "title": "規劃行程",
@@ -26,7 +28,11 @@
     "arriveBy": "抵達時間",
     "useYouBike": "使用 YouBike",
     "go": "搜尋路線",
-    "maxStops": "最多可新增 {{count}} 個停留點"
+    "maxStops": "最多可新增 {{count}} 個停留點",
+    "trip": "行程",
+    "swap": "交換起點與終點",
+    "when": "時間",
+    "options": "選項"
   },
   "results": {
     "title": "路線",
@@ -35,7 +41,9 @@
     "walk": "步行 {{distance}}",
     "noRoutes": "找不到路線。請換個時間，或開啟 YouBike。",
     "later": "較晚班次",
-    "earlier": "較早班次"
+    "earlier": "較早班次",
+    "details": "路線",
+    "leavesFrom": "{{time}} 從{{place}}出發"
   },
   "leg": {
     "WALK": "步行",
@@ -52,7 +60,8 @@
     "towards": "往 {{headsign}}",
     "stayAt": "在{{place}}停留 {{minutes}} 分鐘",
     "pickUpBike": "在{{station}}借車",
-    "returnBike": "在{{station}}還車"
+    "returnBike": "在{{station}}還車",
+    "getOffAt": "在{{place}}下車"
   },
   "realtime": {
     "live": "即時",
@@ -82,7 +91,12 @@
     "bikes": "可借",
     "ebikes": "電輔車",
     "docks": "可還",
-    "outage": "此區 YouBike 目前停止或暫停營運，路線不會使用 YouBike。"
+    "outage": "此區 YouBike 目前停止或暫停營運，路線不會使用 YouBike。",
+    "outageShort": "附近 YouBike 暫停營運",
+    "nearby": "附近站點",
+    "closed": "暫停服務",
+    "none": "這裡沒有站點",
+    "zoomIn": "放大地圖即可看到 YouBike 站點。"
   },
   "tpass": {
     "title": "TPASS",
@@ -105,7 +119,7 @@
     "serverSave": "儲存",
     "serverSaved": "已儲存。",
     "serverInvalid": "這不是有效的伺服器位址。範例：http://192.168.1.20:3000",
-    "accessKey": "存取金鑰（伺服器有設定時才需要）",
+    "accessKey": "存取金鑰（選填）",
     "findServer": "在這個 Wi-Fi 上尋找伺服器",
     "searching": "正在這個 Wi-Fi 上尋找 TWCommute 伺服器…",
     "serversFound": "點選位址即可使用：",
@@ -117,5 +131,13 @@
     "network": "無法連線至 TWCommute 伺服器，請檢查網路連線及設定中的伺服器位址。",
     "generic": "發生錯誤。",
     "unauthorized": "伺服器需要存取金鑰。請到「設定 → 伺服器」輸入。"
+  },
+  "home": {
+    "departures": "附近發車",
+    "locate": "顯示我的位置",
+    "noStops": "附近沒有站牌。"
+  },
+  "pick": {
+    "hint": "移動地圖，讓圖釘對準地點。"
   }
 }

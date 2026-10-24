@@ -13,7 +13,9 @@
     "loading": "불러오는 중…",
     "minutes": "{{count}}분",
     "currentLocation": "현재 위치",
-    "dataCredit": "데이터 출처: 交通部運輸資料流通服務平臺"
+    "dataCredit": "데이터 출처: 交通部運輸資料流通服務平臺",
+    "details": "자세히",
+    "chooseOnMap": "지도에서 선택"
   },
   "plan": {
     "title": "경로 찾기",
@@ -26,7 +28,11 @@
     "arriveBy": "도착 시간",
     "useYouBike": "YouBike 이용",
     "go": "경로 검색",
-    "maxStops": "경유지는 최대 {{count}}곳까지 추가할 수 있어요"
+    "maxStops": "경유지는 최대 {{count}}곳까지 추가할 수 있어요",
+    "trip": "경로",
+    "swap": "출발지와 도착지 바꾸기",
+    "when": "시간",
+    "options": "옵션"
   },
   "results": {
     "title": "경로",
@@ -35,7 +41,9 @@
     "walk": "도보 {{distance}}",
     "noRoutes": "경로를 찾지 못했어요. 시간을 바꾸거나 YouBike를 켜 보세요.",
     "later": "다음 출발",
-    "earlier": "이전 출발"
+    "earlier": "이전 출발",
+    "details": "경로 상세",
+    "leavesFrom": "{{time}} {{place}}에서 출발"
   },
   "leg": {
     "WALK": "도보",
@@ -52,7 +60,8 @@
     "towards": "{{headsign}} 방면",
     "stayAt": "{{place}}에서 {{minutes}}분 머무르기",
     "pickUpBike": "{{station}}에서 자전거 대여",
-    "returnBike": "{{station}}에 자전거 반납"
+    "returnBike": "{{station}}에 자전거 반납",
+    "getOffAt": "{{place}}에서 하차"
   },
   "realtime": {
     "live": "실시간",
@@ -82,7 +91,12 @@
     "bikes": "대여 가능",
     "ebikes": "전기자전거",
     "docks": "반납 가능",
-    "outage": "이 지역의 YouBike는 현재 운영이 중단되어 경로에 포함되지 않습니다."
+    "outage": "이 지역의 YouBike는 현재 운영이 중단되어 경로에 포함되지 않습니다.",
+    "outageShort": "근처 YouBike 운영 중단",
+    "nearby": "근처 대여소",
+    "closed": "운영 안 함",
+    "none": "여기에는 대여소가 없어요",
+    "zoomIn": "지도를 확대하면 YouBike 대여소가 보여요."
   },
   "tpass": {
     "title": "TPASS",
@@ -105,7 +119,7 @@
     "serverSave": "저장",
     "serverSaved": "저장했어요.",
     "serverInvalid": "올바른 서버 주소가 아니에요. 예: http://192.168.1.20:3000",
-    "accessKey": "액세스 키 (서버에 설정된 경우에만)",
+    "accessKey": "액세스 키 (선택)",
     "findServer": "이 Wi-Fi에서 서버 찾기",
     "searching": "이 Wi-Fi에서 TWCommute 서버를 찾는 중…",
     "serversFound": "주소를 눌러 사용하세요:",
@@ -117,5 +131,13 @@
     "network": "TWCommute 서버에 연결할 수 없어요. 네트워크와 설정의 서버 주소를 확인해 주세요.",
     "generic": "문제가 발생했어요.",
     "unauthorized": "서버에 액세스 키가 필요해요. 설정 → 서버에서 입력하세요."
+  },
+  "home": {
+    "departures": "출발 정보",
+    "locate": "내 위치 표시",
+    "noStops": "근처에 정류장이 없어요."
+  },
+  "pick": {
+    "hint": "핀이 장소에 오도록 지도를 움직이세요."
   }
 }

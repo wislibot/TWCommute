@@ -3,10 +3,10 @@ import type { Locale } from "@twc/contracts";
 import { TPASS_PASSES } from "@twc/fares";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
-import { PrimaryButton } from "@/components/form";
+import { ActivityIndicator, ScrollView, StyleSheet, TextInput } from "react-native";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { Group, Row } from "@/components/ui";
 import { useTheme } from "@/hooks/use-theme";
 import { normalizeServerUrl } from "@/lib/config";
 import { findServers } from "@/lib/discover";
@@ -22,40 +22,8 @@ const LANGUAGES: Array<{ value: Locale | null; label: string }> = [
   { value: "ko", label: "한국어" },
 ];
 
-function Option({
-  label,
-  detail,
-  selected,
-  onPress,
-}: {
-  label: string;
-  detail?: string;
-  selected: boolean;
-  onPress: () => void;
-}) {
-  const theme = useTheme();
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="radio"
-      accessibilityState={{ selected }}
-      style={[styles.option, { borderBottomColor: theme.border }]}
-    >
-      <View style={styles.flex}>
-        <ThemedText>{label}</ThemedText>
-        {detail && (
-          <ThemedText type="small" themeColor="textSecondary">
-            {detail}
-          </ThemedText>
-        )}
-      </View>
-      {selected && <ThemedText style={{ color: theme.tint }}>✓</ThemedText>}
-    </Pressable>
-  );
-}
-
 /** Where the app's backend runs, e.g. a computer on the same Wi-Fi (docs/TRY_IT.md). */
-function ServerSetting() {
+function ServerSettings() {
   const { t } = useTranslation();
   const theme = useTheme();
   const queryClient = useQueryClient();
@@ -85,77 +53,61 @@ function ServerSetting() {
     setFound(await findServers().catch(() => []));
   };
 
+  const field = (value: string, onChange: (v: string) => void, placeholder: string, label: string) => (
+    <TextInput
+      value={value}
+      onChangeText={(v) => {
+        onChange(v);
+        setStatus(null);
+      }}
+      onSubmitEditing={() => save()}
+      placeholder={placeholder}
+      placeholderTextColor={theme.textSecondary}
+      autoCapitalize="none"
+      autoCorrect={false}
+      keyboardType="url"
+      returnKeyType="done"
+      accessibilityLabel={label}
+      style={[styles.input, { color: theme.text }]}
+    />
+  );
+
+  const footer =
+    status === "invalid"
+      ? t("settings.serverInvalid")
+      : status === "saved"
+        ? t("settings.serverSaved")
+        : t("settings.serverHint");
+
   return (
-    <View style={styles.server}>
-      <TextInput
-        value={text}
-        onChangeText={(v) => {
-          setText(v);
-          setStatus(null);
-        }}
-        onSubmitEditing={() => save()}
-        placeholder="http://192.168.1.20:3000"
-        placeholderTextColor={theme.textSecondary}
-        autoCapitalize="none"
-        autoCorrect={false}
-        keyboardType="url"
-        returnKeyType="done"
-        accessibilityLabel={t("settings.server")}
-        style={[styles.input, { backgroundColor: theme.backgroundElement, color: theme.text }]}
-      />
-      <ThemedText type="small" themeColor="textSecondary">
-        {t("settings.serverHint")}
-      </ThemedText>
-      <TextInput
-        value={key}
-        onChangeText={(v) => {
-          setKey(v);
-          setStatus(null);
-        }}
-        onSubmitEditing={() => save()}
-        placeholder={t("settings.accessKey")}
-        placeholderTextColor={theme.textSecondary}
-        autoCapitalize="none"
-        autoCorrect={false}
-        returnKeyType="done"
-        accessibilityLabel={t("settings.accessKey")}
-        style={[styles.input, { backgroundColor: theme.backgroundElement, color: theme.text }]}
-      />
-      {status && (
-        <ThemedText type="small" style={{ color: status === "invalid" ? theme.danger : theme.tint }}>
-          {status === "invalid" ? t("settings.serverInvalid") : t("settings.serverSaved")}
-        </ThemedText>
-      )}
-      <PrimaryButton title={t("settings.serverSave")} onPress={() => save()} />
-      <Pressable onPress={find} disabled={found === undefined} accessibilityRole="button" style={styles.findButton}>
-        <ThemedText style={{ color: theme.tint }}>{t("settings.findServer")}</ThemedText>
-      </Pressable>
-      {found === undefined && (
-        <ThemedText type="small" themeColor="textSecondary">
-          {t("settings.searching")}
-        </ThemedText>
-      )}
-      {found?.length === 0 && (
-        <ThemedText type="small" themeColor="textSecondary">
-          {t("settings.noServerFound")}
-        </ThemedText>
-      )}
-      {found && found.length > 0 && (
-        <ThemedText type="small" themeColor="textSecondary">
-          {t("settings.serversFound")}
-        </ThemedText>
-      )}
-      {found?.map((url) => (
-        <Pressable key={url} onPress={() => save(url)} accessibilityRole="button" style={styles.findButton}>
-          <ThemedText type="smallBold" style={{ color: theme.tint }}>
-            {url}
-          </ThemedText>
-        </Pressable>
-      ))}
-    </View>
+    <>
+      <Group header={t("settings.server")} footer={footer}>
+        <Row first title={field(text, setText, "http://192.168.1.20:3000", t("settings.server"))} />
+        <Row title={field(key, setKey, t("settings.accessKey"), t("settings.accessKey"))} />
+        <Row title={t("settings.serverSave")} titleColor={theme.tint} onPress={() => save()} />
+      </Group>
+      <Group
+        footer={
+          found?.length === 0 ? t("settings.noServerFound") : found === undefined ? t("settings.searching") : undefined
+        }
+      >
+        <Row
+          first
+          icon="wifi"
+          title={t("settings.findServer")}
+          titleColor={theme.tint}
+          onPress={found === undefined ? undefined : find}
+          trailing={found === undefined ? <ActivityIndicator color={theme.textSecondary} /> : undefined}
+        />
+        {found?.map((url) => (
+          <Row key={url} title={url} subtitle={t("settings.serversFound")} chevron onPress={() => save(url)} />
+        ))}
+      </Group>
+    </>
   );
 }
 
+/** Settings as iOS inset grouped lists. */
 export default function SettingsScreen() {
   const { t } = useTranslation();
   const locale = useLocale();
@@ -164,46 +116,42 @@ export default function SettingsScreen() {
 
   return (
     <ThemedView style={styles.flex}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <ThemedText type="smallBold">{t("settings.language")}</ThemedText>
-        {LANGUAGES.map((l) => (
-          <Option
-            key={l.label}
-            label={l.label}
-            selected={settings.locale === l.value}
-            onPress={() => settings.setLocale(l.value)}
+      <ScrollView contentContainerStyle={styles.content} contentInsetAdjustmentBehavior="automatic">
+        <Group header={t("settings.language")}>
+          {LANGUAGES.map((l, i) => (
+            <Row
+              key={l.label}
+              first={i === 0}
+              title={l.label}
+              checked={settings.locale === l.value}
+              onPress={() => settings.setLocale(l.value)}
+            />
+          ))}
+        </Group>
+
+        <Group header={t("settings.tpassPass")}>
+          <Row
+            first
+            title={t("tpass.none")}
+            checked={settings.tpassId === null}
+            onPress={() => settings.setTpassId(null)}
           />
-        ))}
+          {TPASS_PASSES.map((p) => (
+            <Row
+              key={p.id}
+              title={p.name[nameKey]}
+              subtitle={`NT$${p.priceTwd}${p.residentPriceTwd ? ` / NT$${p.residentPriceTwd}` : ""}`}
+              checked={settings.tpassId === p.id}
+              onPress={() => settings.setTpassId(p.id)}
+            />
+          ))}
+        </Group>
 
-        <ThemedText type="smallBold" style={styles.section}>
-          {t("settings.tpassPass")}
-        </ThemedText>
-        <Option
-          label={t("tpass.none")}
-          selected={settings.tpassId === null}
-          onPress={() => settings.setTpassId(null)}
-        />
-        {TPASS_PASSES.map((p) => (
-          <Option
-            key={p.id}
-            label={p.name[nameKey]}
-            detail={`NT$${p.priceTwd}${p.residentPriceTwd ? ` / NT$${p.residentPriceTwd}` : ""}`}
-            selected={settings.tpassId === p.id}
-            onPress={() => settings.setTpassId(p.id)}
-          />
-        ))}
+        <ServerSettings />
 
-        <ThemedText type="smallBold" style={styles.section}>
-          {t("settings.server")}
-        </ThemedText>
-        <ServerSetting />
-
-        <ThemedText type="smallBold" style={styles.section}>
-          {t("settings.about")}
-        </ThemedText>
-        <ThemedText type="small" themeColor="textSecondary">
-          {t("settings.dataSource")}
-        </ThemedText>
+        <Group header={t("settings.about")}>
+          <Row first title={<ThemedText type="footnote">{t("settings.dataSource")}</ThemedText>} />
+        </Group>
       </ScrollView>
     </ThemedView>
   );
@@ -211,15 +159,6 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  content: { padding: 16, gap: 4 },
-  section: { marginTop: 20 },
-  option: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  server: { gap: 8, paddingTop: 8 },
-  input: { borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16 },
-  findButton: { paddingVertical: 10 },
+  content: { padding: 16, gap: 28, paddingBottom: 48 },
+  input: { fontSize: 17, paddingVertical: 0, paddingHorizontal: 0, minHeight: 22 },
 });

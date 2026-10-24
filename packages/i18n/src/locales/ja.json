@@ -13,7 +13,9 @@
     "loading": "読み込み中…",
     "minutes": "{{count}}分",
     "currentLocation": "現在地",
-    "dataCredit": "データ提供：交通部運輸資料流通服務平臺"
+    "dataCredit": "データ提供：交通部運輸資料流通服務平臺",
+    "details": "詳細",
+    "chooseOnMap": "地図で選ぶ"
   },
   "plan": {
     "title": "ルート検索",
@@ -26,7 +28,11 @@
     "arriveBy": "到着時刻",
     "useYouBike": "YouBikeを使う",
     "go": "ルートを検索",
-    "maxStops": "立ち寄り先は最大{{count}}か所までです"
+    "maxStops": "立ち寄り先は最大{{count}}か所までです",
+    "trip": "ルート",
+    "swap": "出発地と目的地を入れ替え",
+    "when": "日時",
+    "options": "オプション"
   },
   "results": {
     "title": "ルート",
@@ -35,7 +41,9 @@
     "walk": "徒歩 {{distance}}",
     "noRoutes": "ルートが見つかりません。時刻を変えるか、YouBikeをオンにしてください。",
     "later": "後の便",
-    "earlier": "前の便"
+    "earlier": "前の便",
+    "details": "ルート詳細",
+    "leavesFrom": "{{time}} {{place}}発"
   },
   "leg": {
     "WALK": "徒歩",
@@ -52,7 +60,8 @@
     "towards": "{{headsign}}行き",
     "stayAt": "{{place}}に{{minutes}}分滞在",
     "pickUpBike": "{{station}}で自転車を借りる",
-    "returnBike": "{{station}}で自転車を返す"
+    "returnBike": "{{station}}で自転車を返す",
+    "getOffAt": "{{place}}で下車"
   },
   "realtime": {
     "live": "リアルタイム",
@@ -82,7 +91,12 @@
     "bikes": "貸出可",
     "ebikes": "電動アシスト",
     "docks": "返却可",
-    "outage": "この付近の YouBike は現在運休中のため、ルートには含まれません。"
+    "outage": "この付近の YouBike は現在運休中のため、ルートには含まれません。",
+    "outageShort": "付近の YouBike は運休中",
+    "nearby": "近くのステーション",
+    "closed": "休止中",
+    "none": "ここにはステーションがありません",
+    "zoomIn": "地図を拡大すると YouBike ステーションが表示されます。"
   },
   "tpass": {
     "title": "TPASS",
@@ -105,7 +119,7 @@
     "serverSave": "保存",
     "serverSaved": "保存しました。",
     "serverInvalid": "サーバーアドレスの形式ではありません。例：http://192.168.1.20:3000",
-    "accessKey": "アクセスキー（サーバーに設定がある場合のみ）",
+    "accessKey": "アクセスキー（任意）",
     "findServer": "このWi-Fiでサーバーを探す",
     "searching": "このWi-FiでTWCommuteサーバーを探しています…",
     "serversFound": "アドレスをタップして使用：",
@@ -117,5 +131,13 @@
     "network": "TWCommuteのサーバーに接続できません。通信環境と、設定のサーバーアドレスをご確認ください。",
     "generic": "エラーが発生しました。",
     "unauthorized": "サーバーにアクセスキーが必要です。設定 → サーバーで入力してください。"
+  },
+  "home": {
+    "departures": "発車案内",
+    "locate": "現在地を表示",
+    "noStops": "近くに停留所がありません。"
+  },
+  "pick": {
+    "hint": "ピンが場所に重なるように地図を動かしてください。"
   }
 }

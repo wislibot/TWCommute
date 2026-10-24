@@ -1,4 +1,4 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
 import type { BBox, Locale, PlanRequestInput } from "@twc/contracts";
 import * as Location from "expo-location";
 import { useEffect, useState } from "react";
@@ -45,6 +45,18 @@ export function useDepartures(stopId: string) {
     queryKey: ["departures", stopId],
     queryFn: () => api.departures(stopId),
     refetchInterval: 30_000,
+  });
+}
+
+/** Departure boards of several stops at once (the home screen's nearby departures), by stop id. */
+export function useBoards(stopIds: readonly string[]) {
+  return useQueries({
+    queries: stopIds.map((id) => ({
+      queryKey: ["departures", id],
+      queryFn: () => api.departures(id),
+      refetchInterval: 30_000,
+      staleTime: 15_000,
+    })),
   });
 }
 

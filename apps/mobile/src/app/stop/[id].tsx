@@ -1,68 +1,71 @@
 import { Stack, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { ActivityIndicator, FlatList, StyleSheet, View } from "react-native";
-import { ModeChip, RealtimeBadge, ServiceAlertBadge } from "@/components/badges";
+import { ActivityIndicator, ScrollView, StyleSheet, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { ModeChip } from "@/components/badges";
 import { DataCredit } from "@/components/data-credit";
+import { DepartureRow } from "@/components/departure-row";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { Group, Row } from "@/components/ui";
 import { useTheme } from "@/hooks/use-theme";
 import { errorText } from "@/lib/api";
-import { formatTime, minutesUntil } from "@/lib/format";
-import { useDepartures, useLocale } from "@/lib/hooks";
+import { useDepartures } from "@/lib/hooks";
 
+/** A stop's departure board: the stop as a large title, then the next hour's departures. */
 export default function StopScreen() {
   const { t } = useTranslation();
   const theme = useTheme();
-  const locale = useLocale();
+  const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const board = useDepartures(id);
+  const now = Date.now();
+  const stop = board.data?.stop;
+  const departures = board.data?.departures ?? [];
 
   if (board.isLoading) {
     return (
       <ThemedView style={styles.center}>
-        <ActivityIndicator />
+        <ActivityIndicator color={theme.textSecondary} />
       </ThemedView>
     );
   }
   return (
     <ThemedView style={styles.flex}>
-      <Stack.Screen options={{ title: board.data?.stop.name ?? t("stop.departures") }} />
-      <FlatList
-        data={board.data?.departures ?? []}
-        keyExtractor={(d, i) => `${d.routeId}-${d.scheduled}-${i}`}
-        contentContainerStyle={styles.list}
-        ListFooterComponent={<DataCredit />}
-        ListEmptyComponent={
-          <ThemedText themeColor="textSecondary" style={styles.empty}>
-            {board.isError ? t(errorText(board.error)) : t("stop.noDepartures")}
+      <Stack.Screen options={{ title: "" }} />
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 16 }]}>
+        <View style={styles.title}>
+          <ThemedText type="title" numberOfLines={2}>
+            {stop?.name ?? t("stop.departures")}
           </ThemedText>
-        }
-        renderItem={({ item }) => (
-          <View style={[styles.row, { borderBottomColor: theme.border }]}>
-            <ModeChip mode={item.mode} label={item.routeShortName} />
-            <View style={styles.flex}>
-              {item.headsign && (
-                <ThemedText numberOfLines={1}>{t("leg.towards", { headsign: item.headsign })}</ThemedText>
-              )}
-              <View style={styles.badges}>
-                <RealtimeBadge realtime={item.realtime} />
-                {item.serviceAlert && <ServiceAlertBadge />}
-              </View>
-            </View>
-            <View style={styles.time}>
-              {item.live && item.live.etaSeconds !== null ? (
-                <ThemedText type="smallBold" style={{ color: theme.success }}>
-                  {item.live.etaSeconds < 60
-                    ? t("realtime.arriving")
-                    : t("realtime.arrivesIn", { minutes: minutesUntil(item.live.etaSeconds) })}
-                </ThemedText>
-              ) : (
-                <ThemedText type="smallBold">{formatTime(item.estimated ?? item.scheduled, locale)}</ThemedText>
-              )}
-            </View>
+          <View style={styles.chips}>
+            {stop?.modes.map((m) => (
+              <ModeChip key={m} mode={m} />
+            ))}
+            {stop?.code && (
+              <ThemedText type="footnote" themeColor="textSecondary">
+                {stop.code}
+              </ThemedText>
+            )}
           </View>
-        )}
-      />
+        </View>
+        <Group header={t("stop.departures")}>
+          {departures.map((d, i) => (
+            <DepartureRow key={`${d.routeId}-${d.headsign}-${d.scheduled}`} dep={d} now={now} first={i === 0} />
+          ))}
+          {departures.length === 0 && (
+            <Row
+              first
+              title={
+                <ThemedText themeColor="textSecondary">
+                  {board.isError ? t(errorText(board.error)) : t("stop.noDepartures")}
+                </ThemedText>
+              }
+            />
+          )}
+        </Group>
+        <DataCredit />
+      </ScrollView>
     </ThemedView>
   );
 }
@@ -70,15 +73,7 @@ export default function StopScreen() {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  list: { padding: 16 },
-  empty: { textAlign: "center", padding: 24 },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  time: { alignItems: "flex-end", minWidth: 80 },
-  badges: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  content: { padding: 16, gap: 20 },
+  title: { gap: 8, paddingHorizontal: 4 },
+  chips: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6 },
 });

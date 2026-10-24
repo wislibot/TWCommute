@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bikeLevel, bikesOutOfService, boundsOf, decodeLine } from "./geo";
+import { bikeLevel, bikesOutOfService, boundsOf, decodeLine, distanceMeters } from "./geo";
 import { legColor, textOn } from "./modes";
 
 describe("geo", () => {
@@ -23,6 +23,11 @@ describe("geo", () => {
     expect(bikeLevel({ bikes: 2, status: "active" })).toBe("few");
     expect(bikeLevel({ bikes: 9, status: "active" })).toBe("ok");
     expect(bikeLevel({ bikes: 9, status: "suspended" })).toBe("unknown");
+  });
+  it("measures distances", () => {
+    // 新竹 → 竹北 TRA stations: 4.18 km north and 3.83 km east, about 5.7 km apart.
+    const d = distanceMeters({ lat: 24.80157, lon: 120.97157 }, { lat: 24.83919, lon: 121.00946 });
+    expect(Math.round(d / 100)).toBe(57);
   });
   it("detects YouBike out of service", () => {
     expect(bikesOutOfService([{ status: "closed" }, { status: "suspended" }, { status: "unknown" }])).toBe(true);
