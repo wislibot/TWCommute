@@ -48,7 +48,7 @@ export default function ItineraryScreen() {
               id="route-casing"
               type="line"
               layout={{ "line-cap": "round", "line-join": "round" }}
-              paint={{ "line-color": "#FFFFFF", "line-width": 8 }}
+              paint={{ "line-color": theme.surface, "line-width": 8 }}
             />
             <Layer
               id="route-line"

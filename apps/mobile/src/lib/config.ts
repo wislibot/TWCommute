@@ -34,8 +34,15 @@ export function subnetServerUrls(phoneIp: string): string[] {
     .map((n) => `http://${prefix}.${n}:${SERVER_PORT}`);
 }
 
-/** Vector style. OpenFreeMap needs no key; swap for MapTiler/Protomaps in production if needed. */
-export const MAP_STYLE_URL = process.env.EXPO_PUBLIC_MAP_STYLE_URL ?? "https://tiles.openfreemap.org/styles/liberty";
+/**
+ * Vector map styles by color scheme: OpenFreeMap's muted Positron and Dark, so our routes, stops and
+ * bikes stand out (both keep "Hsinchu 新竹市" bilingual labels). No key needed; swap for
+ * MapTiler/Protomaps in production if needed. EXPO_PUBLIC_MAP_STYLE_URL replaces both.
+ */
+export const MAP_STYLES = {
+  light: process.env.EXPO_PUBLIC_MAP_STYLE_URL ?? "https://tiles.openfreemap.org/styles/positron",
+  dark: process.env.EXPO_PUBLIC_MAP_STYLE_URL ?? "https://tiles.openfreemap.org/styles/dark",
+} as const;
 
 /** Taipei Main Station: default map center before we know the user's location. */
 export const DEFAULT_CENTER: [number, number] = [121.517, 25.0478];

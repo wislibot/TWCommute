@@ -8,7 +8,8 @@ import {
 } from "@maplibre/maplibre-react-native";
 import type { ReactNode, Ref } from "react";
 import { type NativeSyntheticEvent, StyleSheet } from "react-native";
-import { MAP_STYLE_URL } from "@/lib/config";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { MAP_STYLES } from "@/lib/config";
 
 interface Props {
   center: [number, number];
@@ -23,7 +24,7 @@ interface Props {
   children?: ReactNode;
 }
 
-/** MapLibre map with our style and attribution on (required by OpenStreetMap). */
+/** MapLibre map with our light or dark style and attribution on (required by OpenStreetMap). */
 export function TransitMap({
   center,
   zoom = 15,
@@ -35,11 +36,12 @@ export function TransitMap({
   onReady,
   children,
 }: Props) {
+  const scheme = useColorScheme() === "dark" ? "dark" : "light";
   return (
     <MapLibreMap
       ref={mapRef}
       style={StyleSheet.absoluteFill}
-      mapStyle={MAP_STYLE_URL}
+      mapStyle={MAP_STYLES[scheme]}
       attribution
       logo={false}
       onRegionDidChange={onRegionDidChange}

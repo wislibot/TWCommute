@@ -11,7 +11,7 @@ EXPO_PUBLIC_API_URL=http://<host>:3000 npx expo run:android
 | Variable | Default | |
 | --- | --- | --- |
 | `EXPO_PUBLIC_API_URL` | `http://localhost:3000` | Android emulator: `http://10.0.2.2:3000` |
-| `EXPO_PUBLIC_MAP_STYLE_URL` | OpenFreeMap Liberty | Any MapLibre style URL |
+| `EXPO_PUBLIC_MAP_STYLE_URL` | OpenFreeMap Positron (light), Dark (dark) | Any MapLibre style URL, for both modes |
 
 ## Building the APK
 
